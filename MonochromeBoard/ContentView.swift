@@ -184,6 +184,10 @@ private struct BoardView: View {
         let tasks = project.tasks.filter { $0.columnID == column.id }
         return VStack(alignment: .leading, spacing: 15) {
             HStack {
+                Image(systemName: "line.3.horizontal")
+                    .font(.caption)
+                    .foregroundStyle(Palette.muted)
+                    .accessibilityHidden(true)
                 Text(column.name.uppercased())
                     .font(.system(size: 12, weight: .bold, design: .monospaced))
                     .tracking(1.2)
@@ -196,6 +200,18 @@ private struct BoardView: View {
                         columnName = column.name
                         renameColumn = column
                     }
+                    if let index = project.columns.firstIndex(where: { $0.id == column.id }) {
+                        if index > 0 {
+                            Button("Move left", systemImage: "arrow.left") {
+                                store.moveColumn(column.id, in: projectID, to: project.columns[index - 1].id)
+                            }
+                        }
+                        if index < project.columns.count - 1 {
+                            Button("Move right", systemImage: "arrow.right") {
+                                store.moveColumn(column.id, in: projectID, to: project.columns[index + 1].id)
+                            }
+                        }
+                    }
                     if project.columns.count > 1 {
                         Button("Delete column", systemImage: "trash", role: .destructive) {
                             store.deleteColumn(column.id, in: projectID)
@@ -204,6 +220,8 @@ private struct BoardView: View {
                 } label: { Image(systemName: "ellipsis").foregroundStyle(Palette.muted) }
             }
             .padding(.horizontal, 3)
+            .draggable(column.id.uuidString)
+            .accessibilityHint("Drag to reorder columns")
 
             ForEach(tasks) { task in
                 Button { editingTask = task } label: {
@@ -231,7 +249,7 @@ private struct BoardView: View {
                     }
                     .padding(16)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(project.color.tint, in: RoundedRectangle(cornerRadius: 15))
+                    .background((task.color ?? project.color).tint, in: RoundedRectangle(cornerRadius: 15))
                     .overlay(RoundedRectangle(cornerRadius: 15).stroke(Palette.line))
                 }
                 .buttonStyle(.plain)
@@ -263,10 +281,16 @@ private struct BoardView: View {
         .frame(minHeight: 300, alignment: .top)
         .background(Color(red: 0.92, green: 0.92, blue: 0.92), in: RoundedRectangle(cornerRadius: 21))
         .dropDestination(for: String.self) { items, _ in
-            guard let first = items.first, let id = UUID(uuidString: first),
-                  project.tasks.contains(where: { $0.id == id }) else { return false }
-            store.moveTask(id, in: projectID, to: column.id)
-            return true
+            guard let first = items.first, let id = UUID(uuidString: first) else { return false }
+            if project.tasks.contains(where: { $0.id == id }) {
+                store.moveTask(id, in: projectID, to: column.id)
+                return true
+            }
+            if project.columns.contains(where: { $0.id == id }) {
+                store.moveColumn(id, in: projectID, to: column.id)
+                return true
+            }
+            return false
         }
     }
 }
@@ -321,7 +345,7 @@ private struct ProjectEditor: View {
                     .padding(.vertical, 8)
                 }
                 Section {
-                    Text("Every task in this project uses its color, including tasks already on the board.")
+                    Text("Tasks use this color unless you choose a different color for an individual task.")
                         .font(.footnote)
                         .foregroundStyle(Palette.muted)
                 }
@@ -356,6 +380,7 @@ private struct TaskEditor: View {
     let initialColumnID: UUID
     @State private var title = ""
     @State private var details = ""
+    @State private var colorChoice: String
     @State private var columnID: UUID
 
     init(projectID: UUID, task: BoardTask?, initialColumnID: UUID) {
@@ -363,6 +388,7 @@ private struct TaskEditor: View {
         self.task = task
         self.initialColumnID = initialColumnID
         _columnID = State(initialValue: initialColumnID)
+        _colorChoice = State(initialValue: task?.color?.rawValue ?? "board")
     }
 
     var body: some View {
@@ -377,6 +403,24 @@ private struct TaskEditor: View {
                     Picker("Move to", selection: $columnID) {
                         ForEach(store.project(projectID)?.columns ?? []) { column in
                             Text(column.name).tag(column.id)
+                        }
+                    }
+                }
+                Section("Task color") {
+                    Picker("Color", selection: $colorChoice) {
+                        HStack {
+                            Circle()
+                                .fill(store.project(projectID)?.color.tint ?? Palette.paper)
+                                .frame(width: 18, height: 18)
+                            Text("Board color")
+                        }
+                        .tag("board")
+                        ForEach(ProjectColor.allCases) { option in
+                            HStack {
+                                Circle().fill(option.tint).frame(width: 18, height: 18)
+                                Text(option.name)
+                            }
+                            .tag(option.rawValue)
                         }
                     }
                 }
@@ -396,9 +440,11 @@ private struct TaskEditor: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         if let task {
-                            store.updateTask(task.id, in: projectID, title: title, details: details, columnID: columnID)
+                            store.updateTask(task.id, in: projectID, title: title, details: details,
+                                             columnID: columnID, color: ProjectColor(rawValue: colorChoice))
                         } else {
-                            store.addTask(to: projectID, columnID: columnID, title: title, details: details)
+                            store.addTask(to: projectID, columnID: columnID, title: title,
+                                          details: details, color: ProjectColor(rawValue: colorChoice))
                         }
                         dismiss()
                     }

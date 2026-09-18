@@ -5,8 +5,31 @@ struct BoardTask: Identifiable, Codable, Equatable {
     var id: UUID = UUID()
     var title: String
     var details: String = ""
+    var color: ProjectColor? = nil
     var columnID: UUID
     var createdAt: Date = Date()
+
+    private enum CodingKeys: String, CodingKey { case id, title, details, color, columnID, createdAt }
+
+    init(id: UUID = UUID(), title: String, details: String = "", color: ProjectColor? = nil,
+         columnID: UUID, createdAt: Date = Date()) {
+        self.id = id
+        self.title = title
+        self.details = details
+        self.color = color
+        self.columnID = columnID
+        self.createdAt = createdAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(UUID.self, forKey: .id)
+        title = try values.decode(String.self, forKey: .title)
+        details = try values.decode(String.self, forKey: .details)
+        color = try values.decodeIfPresent(ProjectColor.self, forKey: .color)
+        columnID = try values.decode(UUID.self, forKey: .columnID)
+        createdAt = try values.decode(Date.self, forKey: .createdAt)
+    }
 }
 
 struct BoardColumn: Identifiable, Codable, Equatable {
@@ -112,22 +135,35 @@ final class BoardStore: ObservableObject {
         save()
     }
 
-    func addTask(to projectID: UUID, columnID: UUID, title: String, details: String) {
+    func moveColumn(_ columnID: UUID, in projectID: UUID, to targetID: UUID) {
+        guard let projectIndex = projects.firstIndex(where: { $0.id == projectID }),
+              let sourceIndex = projects[projectIndex].columns.firstIndex(where: { $0.id == columnID }),
+              let targetIndex = projects[projectIndex].columns.firstIndex(where: { $0.id == targetID }),
+              sourceIndex != targetIndex else { return }
+        let column = projects[projectIndex].columns.remove(at: sourceIndex)
+        projects[projectIndex].columns.insert(column, at: targetIndex)
+        save()
+    }
+
+    func addTask(to projectID: UUID, columnID: UUID, title: String, details: String, color: ProjectColor?) {
         guard let index = projects.firstIndex(where: { $0.id == projectID }),
               projects[index].columns.contains(where: { $0.id == columnID }) else { return }
         projects[index].tasks.append(BoardTask(title: title.trimmingCharacters(in: .whitespacesAndNewlines),
                                                details: details.trimmingCharacters(in: .whitespacesAndNewlines),
+                                               color: color,
                                                columnID: columnID))
         save()
     }
 
-    func updateTask(_ taskID: UUID, in projectID: UUID, title: String, details: String, columnID: UUID) {
+    func updateTask(_ taskID: UUID, in projectID: UUID, title: String, details: String,
+                    columnID: UUID, color: ProjectColor?) {
         guard let projectIndex = projects.firstIndex(where: { $0.id == projectID }),
               let taskIndex = projects[projectIndex].tasks.firstIndex(where: { $0.id == taskID }),
               projects[projectIndex].columns.contains(where: { $0.id == columnID }) else { return }
         projects[projectIndex].tasks[taskIndex].title = title.trimmingCharacters(in: .whitespacesAndNewlines)
         projects[projectIndex].tasks[taskIndex].details = details.trimmingCharacters(in: .whitespacesAndNewlines)
         projects[projectIndex].tasks[taskIndex].columnID = columnID
+        projects[projectIndex].tasks[taskIndex].color = color
         save()
     }
 
