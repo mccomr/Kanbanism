@@ -1,0 +1,12 @@
+# ChatGPT project reference files
+/sources/
+/AGENTS.md
+
+# Xcode user state and build output
+*.xcuserstate
+xcuserdata/
+DerivedData/
+.build/
+*.ipa
+*.dSYM/
+.DS_Store
