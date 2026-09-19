@@ -2,10 +2,13 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 private enum Palette {
-    static let ink = Color(red: 0.09, green: 0.09, blue: 0.09)
-    static let muted = Color(red: 0.43, green: 0.43, blue: 0.43)
-    static let paper = Color(red: 0.96, green: 0.96, blue: 0.96)
-    static let line = Color(red: 0.86, green: 0.86, blue: 0.86)
+    static let ink = Color(red: 0.94, green: 0.94, blue: 0.94)
+    static let muted = Color(red: 0.66, green: 0.66, blue: 0.68)
+    static let paper = Color(red: 0.055, green: 0.055, blue: 0.065)
+    static let surface = Color(red: 0.105, green: 0.105, blue: 0.12)
+    static let raised = Color(red: 0.15, green: 0.15, blue: 0.17)
+    static let line = Color(red: 0.25, green: 0.25, blue: 0.28)
+    static let onPastel = Color(red: 0.10, green: 0.10, blue: 0.11)
 }
 
 private extension ProjectColor {
@@ -56,7 +59,7 @@ struct ContentView: View {
                                             .font(.title3)
                                             .frame(width: 48, height: 48)
                                             .background(project.color.tint, in: RoundedRectangle(cornerRadius: 13))
-                                            .foregroundStyle(Palette.ink)
+                                            .foregroundStyle(Palette.onPastel)
                                         VStack(alignment: .leading, spacing: 8) {
                                             Text(project.name)
                                                 .font(.system(size: 20, weight: .semibold))
@@ -71,7 +74,13 @@ struct ContentView: View {
                                     }
                                     .padding(20)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(project.color.tint.opacity(0.42), in: RoundedRectangle(cornerRadius: 20))
+                                    .background(Palette.surface, in: RoundedRectangle(cornerRadius: 20))
+                                    .overlay(alignment: .leading) {
+                                        RoundedRectangle(cornerRadius: 2)
+                                            .fill(project.color.tint)
+                                            .frame(width: 4)
+                                            .padding(.vertical, 15)
+                                    }
                                     .overlay(RoundedRectangle(cornerRadius: 20).stroke(Palette.line))
                                 }
                                 .buttonStyle(.plain)
@@ -128,7 +137,7 @@ private struct BoardView: View {
                             Label("Add column", systemImage: "plus")
                                 .font(.subheadline.weight(.semibold))
                                 .frame(width: 230, height: 56)
-                                .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                                .background(Palette.surface, in: RoundedRectangle(cornerRadius: 16))
                                 .overlay(RoundedRectangle(cornerRadius: 16).stroke(Palette.line, style: StrokeStyle(dash: [6])))
                         }
                         .foregroundStyle(Palette.ink)
@@ -228,12 +237,12 @@ private struct BoardView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         Text(task.title)
                             .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(Palette.ink)
+                            .foregroundStyle(Palette.onPastel)
                             .multilineTextAlignment(.leading)
                         if !task.details.isEmpty {
                             Text(task.details)
                                 .font(.subheadline)
-                                .foregroundStyle(Palette.muted)
+                                .foregroundStyle(Palette.onPastel.opacity(0.65))
                                 .lineLimit(3)
                                 .multilineTextAlignment(.leading)
                         }
@@ -245,7 +254,7 @@ private struct BoardView: View {
                             Image(systemName: "arrow.left.arrow.right")
                         }
                         .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(Palette.muted)
+                        .foregroundStyle(Palette.onPastel.opacity(0.65))
                     }
                     .padding(16)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -271,7 +280,7 @@ private struct BoardView: View {
                     .font(.subheadline.weight(.semibold))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(14)
-                    .background(Color.white.opacity(0.65), in: RoundedRectangle(cornerRadius: 13))
+                    .background(Palette.raised, in: RoundedRectangle(cornerRadius: 13))
             }
             .foregroundStyle(Palette.muted)
             Spacer(minLength: 0)
@@ -279,7 +288,7 @@ private struct BoardView: View {
         .padding(15)
         .frame(width: 292, alignment: .topLeading)
         .frame(minHeight: 300, alignment: .top)
-        .background(Color(red: 0.92, green: 0.92, blue: 0.92), in: RoundedRectangle(cornerRadius: 21))
+        .background(Palette.surface, in: RoundedRectangle(cornerRadius: 21))
         .dropDestination(for: String.self) { items, _ in
             guard let first = items.first, let id = UUID(uuidString: first) else { return false }
             if project.tasks.contains(where: { $0.id == id }) {
@@ -328,7 +337,7 @@ private struct ProjectEditor: View {
                                             if color == option {
                                                 Image(systemName: "checkmark")
                                                     .fontWeight(.bold)
-                                                    .foregroundStyle(Palette.ink)
+                                                    .foregroundStyle(Palette.onPastel)
                                             }
                                         }
                                     Text(option.name)

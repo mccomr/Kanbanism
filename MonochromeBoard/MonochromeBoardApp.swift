@@ -8,7 +8,7 @@ struct MonochromeBoardApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(store)
-                .preferredColorScheme(.light)
+                .preferredColorScheme(.dark)
         }
     }
 }
