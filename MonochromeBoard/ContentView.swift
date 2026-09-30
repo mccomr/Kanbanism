@@ -289,8 +289,7 @@ private struct BoardView: View {
                             Text(isLeadColumn ? "OPPORTUNITY" : "TASK")
                                 .tracking(1)
                             if !isLeadColumn,
-                               let opportunityID = task.opportunityID,
-                               let opportunity = project.tasks.first(where: { $0.id == opportunityID }) {
+                               let opportunity = resolvedOpportunity(for: task, in: project) {
                                 Text("·  \(opportunity.title.uppercased())")
                                     .lineLimit(1)
                             }
@@ -400,16 +399,30 @@ private struct BoardView: View {
     private func cardOpacity(for task: BoardTask, isLeadColumn: Bool) -> Double {
         guard let selectedOpportunityID else { return 1 }
         if isLeadColumn { return task.id == selectedOpportunityID ? 1 : 0.25 }
-        return task.opportunityID == selectedOpportunityID ? 1 : 0.25
+        guard let project else { return 1 }
+        return resolvedOpportunity(for: task, in: project)?.id == selectedOpportunityID ? 1 : 0.25
     }
 
     private func taskColor(_ task: BoardTask, in project: BoardProject) -> ProjectColor {
         guard project.columns.first?.id != task.columnID,
-              let opportunityID = task.opportunityID,
-              let opportunity = project.tasks.first(where: { $0.id == opportunityID }) else {
+              let opportunity = resolvedOpportunity(for: task, in: project) else {
             return task.color ?? project.color
         }
         return opportunity.color ?? project.color
+    }
+
+    private func resolvedOpportunity(for task: BoardTask, in project: BoardProject) -> BoardTask? {
+        guard let leadColumnID = project.columns.first?.id, task.columnID != leadColumnID else { return nil }
+        let opportunities = project.tasks.filter { $0.columnID == leadColumnID }
+        if let opportunityID = task.opportunityID,
+           let linked = opportunities.first(where: { $0.id == opportunityID }) {
+            return linked
+        }
+        if let taskColor = task.color,
+           let colorMatch = opportunities.first(where: { $0.color == taskColor }) {
+            return colorMatch
+        }
+        return opportunities.first
     }
 
     private func columnBackground(_ column: BoardColumn) -> Color {
@@ -421,8 +434,9 @@ private struct BoardView: View {
                                 proxy: GeometryProxy,
                                 context: inout GraphicsContext) {
         for task in project.tasks {
-            guard let opportunityID = task.opportunityID,
-                  let opportunity = project.tasks.first(where: { $0.id == opportunityID }),
+            guard let opportunity = resolvedOpportunity(for: task, in: project) else { continue }
+            let opportunityID = opportunity.id
+            guard
                   let opportunityAnchor = anchors.cards[opportunityID],
                   let taskAnchor = anchors.cards[task.id] else { continue }
 
