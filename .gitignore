@@ -1,6 +1,8 @@
 # ChatGPT project reference files
 /sources/
 /AGENTS.md
+/output/
+/tmp/
 
 # Xcode user state and build output
 *.xcuserstate
