@@ -36,6 +36,26 @@ private struct ColumnSelection: Identifiable {
   let id: UUID
 }
 
+private func edgeStackOffset(
+  for cardFrame: CGRect,
+  cardIndex: Int,
+  cardCount: Int,
+  scrollportFrame: CGRect?
+) -> CGFloat {
+  guard let scrollportFrame else { return 0 }
+
+  let stackStep: CGFloat = 12
+  let maximumVisibleLayers = 5
+  let topLayer = min(cardIndex, maximumVisibleLayers)
+  let bottomLayer = min(cardCount - cardIndex - 1, maximumVisibleLayers)
+  let topLimit = scrollportFrame.minY + CGFloat(topLayer) * stackStep
+  let bottomLimit = scrollportFrame.maxY - cardFrame.height - CGFloat(bottomLayer) * stackStep
+
+  guard topLimit <= bottomLimit else { return 0 }
+  let displayedMinY = min(max(cardFrame.minY, topLimit), bottomLimit)
+  return displayedMinY - cardFrame.minY
+}
+
 struct ContentView: View {
   @EnvironmentObject private var store: BoardStore
   @State private var showingNewProject = false
@@ -218,6 +238,7 @@ private struct BoardView: View {
   {
     let tasks = project.tasks.filter { $0.columnID == column.id }
     let isLeadColumn = project.columns.first?.id == column.id
+    let scrollportFrame = columnScrollportFrames[column.id]
     return VStack(alignment: .leading, spacing: 15) {
       HStack {
         Image(systemName: "line.3.horizontal")
@@ -316,6 +337,14 @@ private struct BoardView: View {
             .buttonStyle(.plain)
             .zIndex(Double(cardIndex))
             .opacity(cardOpacity(for: task, isLeadColumn: isLeadColumn))
+            .visualEffect { content, geometry in
+              content.offset(
+                y: edgeStackOffset(
+                  for: geometry.frame(in: .named("board")),
+                  cardIndex: cardIndex,
+                  cardCount: tasks.count,
+                  scrollportFrame: scrollportFrame))
+            }
             .onGeometryChange(for: CGRect.self) { geometry in
               geometry.frame(in: .named("board"))
             } action: { frame in
@@ -486,14 +515,15 @@ private struct BoardView: View {
     for task: BoardTask, in project: BoardProject,
     rawFrame: CGRect
   ) -> CGRect {
-    guard let leadColumn = project.columns.first,
-      task.columnID == leadColumn.id,
-      let scrollportFrame = columnScrollportFrames[leadColumn.id]
-    else { return rawFrame }
-    let opportunities = project.tasks.filter { $0.columnID == leadColumn.id }
-    guard let index = opportunities.firstIndex(where: { $0.id == task.id }) else { return rawFrame }
-    let stackedY = scrollportFrame.minY + min(CGFloat(index) * 10, 50)
-    return rawFrame.offsetBy(dx: 0, dy: max(0, stackedY - rawFrame.minY))
+    let columnTasks = project.tasks.filter { $0.columnID == task.columnID }
+    guard let index = columnTasks.firstIndex(where: { $0.id == task.id }) else { return rawFrame }
+    return rawFrame.offsetBy(
+      dx: 0,
+      dy: edgeStackOffset(
+        for: rawFrame,
+        cardIndex: index,
+        cardCount: columnTasks.count,
+        scrollportFrame: columnScrollportFrames[task.columnID]))
   }
 
   private func cardEdgePoint(for frame: CGRect, facingRight: Bool) -> CGPoint {
