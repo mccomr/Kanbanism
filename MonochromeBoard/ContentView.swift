@@ -313,10 +313,8 @@ private struct BoardView: View {
         .frame(minHeight: 300, alignment: .top)
         .background(columnBackground(column), in: RoundedRectangle(cornerRadius: 21))
         .overlay {
-            if let color = column.color {
-                RoundedRectangle(cornerRadius: 21)
-                    .stroke(color.tint.opacity(0.34), lineWidth: 1)
-            }
+            RoundedRectangle(cornerRadius: 21)
+                .stroke(Color.white.opacity(0.72), lineWidth: 1)
         }
         .dropDestination(for: String.self) { items, _ in
             guard let first = items.first, let id = UUID(uuidString: first) else { return false }
