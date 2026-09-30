@@ -428,12 +428,12 @@ private struct BoardView: View {
             let opportunityFrame = displayedCardFrame(for: opportunity, in: project,
                                                       rawFrame: proxy[opportunityAnchor],
                                                       anchors: anchors, proxy: proxy)
-            let taskFrame = proxy[taskAnchor]
+            let taskFrame = displayedCardFrame(for: task, in: project,
+                                               rawFrame: proxy[taskAnchor],
+                                               anchors: anchors, proxy: proxy)
             let travelsRight = taskFrame.midX >= opportunityFrame.midX
-            let start = CGPoint(x: travelsRight ? opportunityFrame.maxX : opportunityFrame.minX,
-                                y: opportunityFrame.midY)
-            let end = CGPoint(x: travelsRight ? taskFrame.minX : taskFrame.maxX,
-                              y: taskFrame.midY)
+            let start = cardEdgePoint(for: opportunityFrame, facingRight: travelsRight)
+            let end = cardEdgePoint(for: taskFrame, facingRight: !travelsRight)
             let bend = max(42, abs(end.x - start.x) * 0.42)
 
             var path = Path()
@@ -479,6 +479,10 @@ private struct BoardView: View {
         let scrollportFrame = proxy[scrollportAnchor]
         let stackedY = scrollportFrame.minY + min(CGFloat(index) * 10, 50)
         return rawFrame.offsetBy(dx: 0, dy: max(0, stackedY - rawFrame.minY))
+    }
+
+    private func cardEdgePoint(for frame: CGRect, facingRight: Bool) -> CGPoint {
+        CGPoint(x: facingRight ? frame.maxX : frame.minX, y: frame.midY)
     }
 }
 
