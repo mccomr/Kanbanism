@@ -444,10 +444,10 @@ private struct BoardView: View {
                           control2: CGPoint(x: end.x - (travelsRight ? bend : -bend), y: end.y))
 
             context.stroke(path, with: .color(Palette.paper.opacity(0.92)),
-                           style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                           style: StrokeStyle(lineWidth: 7, lineCap: .round))
             let connectorOpacity = selectedOpportunityID == nil || selectedOpportunityID == opportunityID ? 0.9 : 0.225
             context.stroke(path, with: .color((opportunity.color ?? project.color).tint.opacity(connectorOpacity)),
-                           style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                           style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
 
             let endpointSize: CGFloat = 7
             for point in [start, end] {
@@ -458,15 +458,6 @@ private struct BoardView: View {
             }
         }
 
-        // Keep connectors above column surfaces while leaving every card face unobstructed.
-        context.blendMode = .destinationOut
-        for (taskID, anchor) in anchors.cards {
-            guard let task = project.tasks.first(where: { $0.id == taskID }) else { continue }
-            let displayedFrame = displayedCardFrame(for: task, in: project,
-                                                    rawFrame: proxy[anchor], anchors: anchors, proxy: proxy)
-            let cardFrame = displayedFrame.insetBy(dx: 2, dy: 2)
-            context.fill(Path(roundedRect: cardFrame, cornerRadius: 13), with: .color(.black))
-        }
     }
 
     private func displayedCardFrame(for task: BoardTask, in project: BoardProject,
