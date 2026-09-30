@@ -284,7 +284,28 @@ private struct BoardView: View {
                     [task.id: $0]
                 }
                 .draggable(task.id.uuidString)
+                .dropDestination(for: String.self) { items, _ in
+                    guard let value = items.first,
+                          let draggedID = UUID(uuidString: value),
+                          let draggedTask = project.tasks.first(where: { $0.id == draggedID }),
+                          draggedTask.columnID == task.columnID,
+                          draggedID != task.id else { return false }
+                    store.moveTask(draggedID, in: projectID, before: task.id)
+                    return true
+                }
                 .contextMenu {
+                    if let index = tasks.firstIndex(where: { $0.id == task.id }) {
+                        if index > 0 {
+                            Button("Move up", systemImage: "arrow.up") {
+                                store.moveTaskWithinColumn(task.id, in: projectID, offset: -1)
+                            }
+                        }
+                        if index < tasks.count - 1 {
+                            Button("Move down", systemImage: "arrow.down") {
+                                store.moveTaskWithinColumn(task.id, in: projectID, offset: 1)
+                            }
+                        }
+                    }
                     if !isLeadColumn {
                         ForEach(project.columns.filter { $0.id != column.id && $0.id != project.columns.first?.id }) { destination in
                             Button("Move to \(destination.name)") {

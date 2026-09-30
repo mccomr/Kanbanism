@@ -191,6 +191,37 @@ final class BoardStore: ObservableObject {
         save()
     }
 
+    func moveTask(_ taskID: UUID, in projectID: UUID, before targetID: UUID) {
+        guard let projectIndex = projects.firstIndex(where: { $0.id == projectID }),
+              let sourceIndex = projects[projectIndex].tasks.firstIndex(where: { $0.id == taskID }),
+              let target = projects[projectIndex].tasks.first(where: { $0.id == targetID }),
+              taskID != targetID else { return }
+        var task = projects[projectIndex].tasks.remove(at: sourceIndex)
+        task.columnID = target.columnID
+        guard let updatedTargetIndex = projects[projectIndex].tasks.firstIndex(where: { $0.id == targetID }) else {
+            projects[projectIndex].tasks.append(task)
+            save()
+            return
+        }
+        projects[projectIndex].tasks.insert(task, at: updatedTargetIndex)
+        save()
+    }
+
+    func moveTaskWithinColumn(_ taskID: UUID, in projectID: UUID, offset: Int) {
+        guard let projectIndex = projects.firstIndex(where: { $0.id == projectID }),
+              let task = projects[projectIndex].tasks.first(where: { $0.id == taskID }) else { return }
+        let orderedIDs = projects[projectIndex].tasks
+            .filter { $0.columnID == task.columnID }
+            .map(\.id)
+        guard let position = orderedIDs.firstIndex(of: taskID) else { return }
+        let destination = position + offset
+        guard orderedIDs.indices.contains(destination),
+              let sourceIndex = projects[projectIndex].tasks.firstIndex(where: { $0.id == taskID }),
+              let destinationIndex = projects[projectIndex].tasks.firstIndex(where: { $0.id == orderedIDs[destination] }) else { return }
+        projects[projectIndex].tasks.swapAt(sourceIndex, destinationIndex)
+        save()
+    }
+
     func deleteTask(_ taskID: UUID, in projectID: UUID) {
         guard let index = projects.firstIndex(where: { $0.id == projectID }) else { return }
         projects[index].tasks.removeAll { $0.id == taskID }
