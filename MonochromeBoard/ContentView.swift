@@ -479,23 +479,7 @@ private struct BoardView: View {
           with: .color((opportunity.color ?? project.color).tint.opacity(connectorOpacity)))
       }
 
-      let arrowDirection: CGFloat = travelsRight ? 1 : -1
-      var arrow = Path()
-      arrow.move(to: end)
-      arrow.addLine(to: CGPoint(x: end.x - arrowDirection * 12, y: end.y - 7))
-      arrow.addLine(to: CGPoint(x: end.x - arrowDirection * 12, y: end.y + 7))
-      arrow.closeSubpath()
-      context.fill(arrow, with: .color(Palette.paper.opacity(0.95)))
-      var innerArrow = Path()
-      innerArrow.move(to: CGPoint(x: end.x - arrowDirection * 2, y: end.y))
-      innerArrow.addLine(to: CGPoint(x: end.x - arrowDirection * 10, y: end.y - 5))
-      innerArrow.addLine(to: CGPoint(x: end.x - arrowDirection * 10, y: end.y + 5))
-      innerArrow.closeSubpath()
-      context.fill(
-        innerArrow,
-        with: .color((opportunity.color ?? project.color).tint.opacity(connectorOpacity)))
     }
-
   }
 
   private func displayedCardFrame(
