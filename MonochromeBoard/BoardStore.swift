@@ -6,17 +6,20 @@ struct BoardTask: Identifiable, Codable, Equatable {
     var title: String
     var details: String = ""
     var color: ProjectColor? = nil
+    var opportunityID: UUID? = nil
     var columnID: UUID
     var createdAt: Date = Date()
 
-    private enum CodingKeys: String, CodingKey { case id, title, details, color, columnID, createdAt }
+    private enum CodingKeys: String, CodingKey { case id, title, details, color, opportunityID, columnID, createdAt }
 
     init(id: UUID = UUID(), title: String, details: String = "", color: ProjectColor? = nil,
+         opportunityID: UUID? = nil,
          columnID: UUID, createdAt: Date = Date()) {
         self.id = id
         self.title = title
         self.details = details
         self.color = color
+        self.opportunityID = opportunityID
         self.columnID = columnID
         self.createdAt = createdAt
     }
@@ -27,6 +30,7 @@ struct BoardTask: Identifiable, Codable, Equatable {
         title = try values.decode(String.self, forKey: .title)
         details = try values.decode(String.self, forKey: .details)
         color = try values.decodeIfPresent(ProjectColor.self, forKey: .color)
+        opportunityID = try values.decodeIfPresent(UUID.self, forKey: .opportunityID)
         columnID = try values.decode(UUID.self, forKey: .columnID)
         createdAt = try values.decode(Date.self, forKey: .createdAt)
     }
@@ -49,7 +53,7 @@ struct BoardProject: Identifiable, Codable, Equatable {
     var name: String
     var color: ProjectColor = .lilac
     var columns: [BoardColumn] = [
-        BoardColumn(name: "To Do"),
+        BoardColumn(name: "Opportunity Leads"),
         BoardColumn(name: "In Progress"),
         BoardColumn(name: "Done")
     ]
@@ -69,6 +73,7 @@ struct BoardProject: Identifiable, Codable, Equatable {
         name = try values.decode(String.self, forKey: .name)
         color = try values.decodeIfPresent(ProjectColor.self, forKey: .color) ?? .lilac
         columns = try values.decode([BoardColumn].self, forKey: .columns)
+        if columns.first?.name == "To Do" { columns[0].name = "Opportunity Leads" }
         tasks = try values.decode([BoardTask].self, forKey: .tasks)
     }
 }
@@ -119,6 +124,7 @@ final class BoardStore: ObservableObject {
 
     func renameColumn(_ columnID: UUID, in projectID: UUID, to name: String) {
         guard let projectIndex = projects.firstIndex(where: { $0.id == projectID }),
+              projects[projectIndex].columns.first?.id != columnID,
               let columnIndex = projects[projectIndex].columns.firstIndex(where: { $0.id == columnID }) else { return }
         projects[projectIndex].columns[columnIndex].name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         save()
@@ -126,7 +132,8 @@ final class BoardStore: ObservableObject {
 
     func deleteColumn(_ columnID: UUID, in projectID: UUID) {
         guard let index = projects.firstIndex(where: { $0.id == projectID }),
-              projects[index].columns.count > 1 else { return }
+              projects[index].columns.count > 1,
+              projects[index].columns.first?.id != columnID else { return }
         let destination = projects[index].columns.first { $0.id != columnID }!.id
         for taskIndex in projects[index].tasks.indices where projects[index].tasks[taskIndex].columnID == columnID {
             projects[index].tasks[taskIndex].columnID = destination
@@ -139,24 +146,26 @@ final class BoardStore: ObservableObject {
         guard let projectIndex = projects.firstIndex(where: { $0.id == projectID }),
               let sourceIndex = projects[projectIndex].columns.firstIndex(where: { $0.id == columnID }),
               let targetIndex = projects[projectIndex].columns.firstIndex(where: { $0.id == targetID }),
-              sourceIndex != targetIndex else { return }
+              sourceIndex > 0 else { return }
         let column = projects[projectIndex].columns.remove(at: sourceIndex)
-        projects[projectIndex].columns.insert(column, at: targetIndex)
+        projects[projectIndex].columns.insert(column, at: max(1, targetIndex))
         save()
     }
 
-    func addTask(to projectID: UUID, columnID: UUID, title: String, details: String, color: ProjectColor?) {
+    func addTask(to projectID: UUID, columnID: UUID, title: String, details: String,
+                 color: ProjectColor?, opportunityID: UUID?) {
         guard let index = projects.firstIndex(where: { $0.id == projectID }),
               projects[index].columns.contains(where: { $0.id == columnID }) else { return }
         projects[index].tasks.append(BoardTask(title: title.trimmingCharacters(in: .whitespacesAndNewlines),
                                                details: details.trimmingCharacters(in: .whitespacesAndNewlines),
                                                color: color,
+                                               opportunityID: opportunityID,
                                                columnID: columnID))
         save()
     }
 
     func updateTask(_ taskID: UUID, in projectID: UUID, title: String, details: String,
-                    columnID: UUID, color: ProjectColor?) {
+                    columnID: UUID, color: ProjectColor?, opportunityID: UUID?) {
         guard let projectIndex = projects.firstIndex(where: { $0.id == projectID }),
               let taskIndex = projects[projectIndex].tasks.firstIndex(where: { $0.id == taskID }),
               projects[projectIndex].columns.contains(where: { $0.id == columnID }) else { return }
@@ -164,6 +173,7 @@ final class BoardStore: ObservableObject {
         projects[projectIndex].tasks[taskIndex].details = details.trimmingCharacters(in: .whitespacesAndNewlines)
         projects[projectIndex].tasks[taskIndex].columnID = columnID
         projects[projectIndex].tasks[taskIndex].color = color
+        projects[projectIndex].tasks[taskIndex].opportunityID = opportunityID
         save()
     }
 
@@ -178,6 +188,9 @@ final class BoardStore: ObservableObject {
     func deleteTask(_ taskID: UUID, in projectID: UUID) {
         guard let index = projects.firstIndex(where: { $0.id == projectID }) else { return }
         projects[index].tasks.removeAll { $0.id == taskID }
+        for taskIndex in projects[index].tasks.indices where projects[index].tasks[taskIndex].opportunityID == taskID {
+            projects[index].tasks[taskIndex].opportunityID = nil
+        }
         save()
     }
 

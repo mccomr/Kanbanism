@@ -191,6 +191,7 @@ private struct BoardView: View {
 
     private func columnView(_ column: BoardColumn, project: BoardProject) -> some View {
         let tasks = project.tasks.filter { $0.columnID == column.id }
+        let isLeadColumn = project.columns.first?.id == column.id
         return VStack(alignment: .leading, spacing: 15) {
             HStack {
                 Image(systemName: "line.3.horizontal")
@@ -205,12 +206,14 @@ private struct BoardView: View {
                     .foregroundStyle(Palette.muted)
                 Spacer()
                 Menu {
-                    Button("Rename", systemImage: "pencil") {
-                        columnName = column.name
-                        renameColumn = column
+                    if !isLeadColumn {
+                        Button("Rename", systemImage: "pencil") {
+                            columnName = column.name
+                            renameColumn = column
+                        }
                     }
-                    if let index = project.columns.firstIndex(where: { $0.id == column.id }) {
-                        if index > 0 {
+                    if let index = project.columns.firstIndex(where: { $0.id == column.id }), !isLeadColumn {
+                        if index > 1 {
                             Button("Move left", systemImage: "arrow.left") {
                                 store.moveColumn(column.id, in: projectID, to: project.columns[index - 1].id)
                             }
@@ -221,7 +224,7 @@ private struct BoardView: View {
                             }
                         }
                     }
-                    if project.columns.count > 1 {
+                    if project.columns.count > 1, !isLeadColumn {
                         Button("Delete column", systemImage: "trash", role: .destructive) {
                             store.deleteColumn(column.id, in: projectID)
                         }
@@ -229,7 +232,7 @@ private struct BoardView: View {
                 } label: { Image(systemName: "ellipsis").foregroundStyle(Palette.muted) }
             }
             .padding(.horizontal, 3)
-            .draggable(column.id.uuidString)
+            .draggable(isLeadColumn ? "" : column.id.uuidString)
             .accessibilityHint("Drag to reorder columns")
 
             ForEach(tasks) { task in
@@ -248,8 +251,14 @@ private struct BoardView: View {
                         }
                         HStack {
                             Image(systemName: "circle.dotted")
-                            Text("TASK")
+                            Text(isLeadColumn ? "OPPORTUNITY" : "TASK")
                                 .tracking(1)
+                            if !isLeadColumn,
+                               let opportunityID = task.opportunityID,
+                               let opportunity = project.tasks.first(where: { $0.id == opportunityID }) {
+                                Text("·  \(opportunity.title.uppercased())")
+                                    .lineLimit(1)
+                            }
                             Spacer()
                             Image(systemName: "arrow.left.arrow.right")
                         }
@@ -258,15 +267,17 @@ private struct BoardView: View {
                     }
                     .padding(16)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background((task.color ?? project.color).tint, in: RoundedRectangle(cornerRadius: 15))
+                    .background(taskColor(task, in: project).tint, in: RoundedRectangle(cornerRadius: 15))
                     .overlay(RoundedRectangle(cornerRadius: 15).stroke(Palette.line))
                 }
                 .buttonStyle(.plain)
                 .draggable(task.id.uuidString)
                 .contextMenu {
-                    ForEach(project.columns.filter { $0.id != column.id }) { destination in
-                        Button("Move to \(destination.name)") {
-                            store.moveTask(task.id, in: projectID, to: destination.id)
+                    if !isLeadColumn {
+                        ForEach(project.columns.filter { $0.id != column.id && $0.id != project.columns.first?.id }) { destination in
+                            Button("Move to \(destination.name)") {
+                                store.moveTask(task.id, in: projectID, to: destination.id)
+                            }
                         }
                     }
                     Button("Delete task", role: .destructive) {
@@ -276,7 +287,7 @@ private struct BoardView: View {
             }
 
             Button { newTaskColumnID = column.id } label: {
-                Label("Add task", systemImage: "plus")
+                Label(isLeadColumn ? "Add opportunity" : "Add task", systemImage: "plus")
                     .font(.subheadline.weight(.semibold))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(14)
@@ -301,6 +312,15 @@ private struct BoardView: View {
             }
             return false
         }
+    }
+
+    private func taskColor(_ task: BoardTask, in project: BoardProject) -> ProjectColor {
+        guard project.columns.first?.id != task.columnID,
+              let opportunityID = task.opportunityID,
+              let opportunity = project.tasks.first(where: { $0.id == opportunityID }) else {
+            return task.color ?? project.color
+        }
+        return opportunity.color ?? project.color
     }
 }
 
@@ -391,6 +411,7 @@ private struct TaskEditor: View {
     @State private var details = ""
     @State private var colorChoice: String
     @State private var columnID: UUID
+    @State private var opportunityID: UUID?
 
     init(projectID: UUID, task: BoardTask?, initialColumnID: UUID) {
         self.projectID = projectID
@@ -398,28 +419,41 @@ private struct TaskEditor: View {
         self.initialColumnID = initialColumnID
         _columnID = State(initialValue: initialColumnID)
         _colorChoice = State(initialValue: task?.color?.rawValue ?? "board")
+        _opportunityID = State(initialValue: task?.opportunityID)
+    }
+
+    private var project: BoardProject? { store.project(projectID) }
+    private var isOpportunity: Bool { project?.columns.first?.id == columnID }
+    private var opportunities: [BoardTask] {
+        guard let leadColumnID = project?.columns.first?.id else { return [] }
+        return project?.tasks.filter { $0.columnID == leadColumnID && $0.id != task?.id } ?? []
     }
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("Task") {
-                    TextField("What needs doing?", text: $title)
+                Section(isOpportunity ? "Opportunity lead" : "Task") {
+                    TextField(isOpportunity ? "Opportunity name" : "What needs doing?", text: $title)
                     TextField("Details (optional)", text: $details, axis: .vertical)
                         .lineLimit(3...6)
                 }
                 Section("Column") {
-                    Picker("Move to", selection: $columnID) {
-                        ForEach(store.project(projectID)?.columns ?? []) { column in
-                            Text(column.name).tag(column.id)
+                    if task != nil, project?.columns.first?.id == task?.columnID {
+                        LabeledContent("Stage", value: project?.columns.first?.name ?? "Opportunity Leads")
+                    } else {
+                        Picker("Move to", selection: $columnID) {
+                            ForEach(project?.columns ?? []) { column in
+                                Text(column.name).tag(column.id)
+                            }
                         }
                     }
                 }
-                Section("Task color") {
+                if isOpportunity {
+                    Section("Opportunity color") {
                     Picker("Color", selection: $colorChoice) {
                         HStack {
                             Circle()
-                                .fill(store.project(projectID)?.color.tint ?? Palette.paper)
+                                .fill(project?.color.tint ?? Palette.paper)
                                 .frame(width: 18, height: 18)
                             Text("Board color")
                         }
@@ -430,6 +464,26 @@ private struct TaskEditor: View {
                                 Text(option.name)
                             }
                             .tag(option.rawValue)
+                        }
+                    }
+                    Text("All tasks linked to this opportunity will use this color.")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.muted)
+                    }
+                } else {
+                    Section("Opportunity") {
+                        if opportunities.isEmpty {
+                            Label("Create an opportunity lead in the first column before adding tasks.",
+                                  systemImage: "exclamationmark.circle")
+                                .font(.footnote)
+                                .foregroundStyle(Palette.muted)
+                        } else {
+                            Picker("Related opportunity", selection: $opportunityID) {
+                                Text("Select opportunity").tag(nil as UUID?)
+                                ForEach(opportunities) { opportunity in
+                                    Text(opportunity.title).tag(opportunity.id as UUID?)
+                                }
+                            }
                         }
                     }
                 }
@@ -450,20 +504,26 @@ private struct TaskEditor: View {
                     Button("Save") {
                         if let task {
                             store.updateTask(task.id, in: projectID, title: title, details: details,
-                                             columnID: columnID, color: ProjectColor(rawValue: colorChoice))
+                                             columnID: columnID,
+                                             color: isOpportunity ? ProjectColor(rawValue: colorChoice) : nil,
+                                             opportunityID: isOpportunity ? nil : opportunityID)
                         } else {
                             store.addTask(to: projectID, columnID: columnID, title: title,
-                                          details: details, color: ProjectColor(rawValue: colorChoice))
+                                          details: details,
+                                          color: isOpportunity ? ProjectColor(rawValue: colorChoice) : nil,
+                                          opportunityID: isOpportunity ? nil : opportunityID)
                         }
                         dismiss()
                     }
                     .fontWeight(.semibold)
-                    .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                              (!isOpportunity && opportunityID == nil))
                 }
             }
             .onAppear {
                 title = task?.title ?? ""
                 details = task?.details ?? ""
+                if !isOpportunity, opportunityID == nil { opportunityID = opportunities.first?.id }
             }
         }
         .tint(Palette.ink)
