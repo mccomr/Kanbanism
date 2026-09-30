@@ -24,6 +24,15 @@ private extension ProjectColor {
     }
 }
 
+private struct CardBoundsPreferenceKey: PreferenceKey {
+    static var defaultValue: [UUID: Anchor<CGRect>] = [:]
+
+    static func reduce(value: inout [UUID: Anchor<CGRect>],
+                       nextValue: () -> [UUID: Anchor<CGRect>]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, latest in latest })
+    }
+}
+
 struct ContentView: View {
     @EnvironmentObject private var store: BoardStore
     @State private var showingNewProject = false
@@ -143,6 +152,15 @@ private struct BoardView: View {
                         .foregroundStyle(Palette.ink)
                     }
                     .padding(18)
+                    .overlayPreferenceValue(CardBoundsPreferenceKey.self) { anchors in
+                        GeometryReader { proxy in
+                            Canvas { context, _ in
+                                drawConnectors(for: project, anchors: anchors, proxy: proxy, context: &context)
+                            }
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                        }
+                    }
                 }
                 .background(Palette.paper)
                 .navigationTitle(project.name)
@@ -271,6 +289,9 @@ private struct BoardView: View {
                     .overlay(RoundedRectangle(cornerRadius: 15).stroke(Palette.line))
                 }
                 .buttonStyle(.plain)
+                .anchorPreference(key: CardBoundsPreferenceKey.self, value: .bounds) {
+                    [task.id: $0]
+                }
                 .draggable(task.id.uuidString)
                 .contextMenu {
                     if !isLeadColumn {
@@ -321,6 +342,45 @@ private struct BoardView: View {
             return task.color ?? project.color
         }
         return opportunity.color ?? project.color
+    }
+
+    private func drawConnectors(for project: BoardProject,
+                                anchors: [UUID: Anchor<CGRect>],
+                                proxy: GeometryProxy,
+                                context: inout GraphicsContext) {
+        for task in project.tasks {
+            guard let opportunityID = task.opportunityID,
+                  let opportunity = project.tasks.first(where: { $0.id == opportunityID }),
+                  let opportunityAnchor = anchors[opportunityID],
+                  let taskAnchor = anchors[task.id] else { continue }
+
+            let opportunityFrame = proxy[opportunityAnchor]
+            let taskFrame = proxy[taskAnchor]
+            let travelsRight = taskFrame.midX >= opportunityFrame.midX
+            let start = CGPoint(x: travelsRight ? opportunityFrame.maxX : opportunityFrame.minX,
+                                y: opportunityFrame.midY)
+            let end = CGPoint(x: travelsRight ? taskFrame.minX : taskFrame.maxX,
+                              y: taskFrame.midY)
+            let bend = max(42, abs(end.x - start.x) * 0.42)
+
+            var path = Path()
+            path.move(to: start)
+            path.addCurve(to: end,
+                          control1: CGPoint(x: start.x + (travelsRight ? bend : -bend), y: start.y),
+                          control2: CGPoint(x: end.x - (travelsRight ? bend : -bend), y: end.y))
+
+            context.stroke(path, with: .color(Palette.paper.opacity(0.92)),
+                           style: StrokeStyle(lineWidth: 6, lineCap: .round))
+            context.stroke(path, with: .color((opportunity.color ?? project.color).tint.opacity(0.9)),
+                           style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+
+            let endpointSize: CGFloat = 7
+            for point in [start, end] {
+                let dot = CGRect(x: point.x - endpointSize / 2, y: point.y - endpointSize / 2,
+                                 width: endpointSize, height: endpointSize)
+                context.fill(Path(ellipseIn: dot), with: .color((opportunity.color ?? project.color).tint))
+            }
+        }
     }
 }
 
