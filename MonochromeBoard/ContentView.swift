@@ -33,21 +33,6 @@ private extension ProjectColor {
     }
 }
 
-private struct BoardAnchors {
-    var cards: [UUID: Anchor<CGRect>] = [:]
-    var columnScrollports: [UUID: Anchor<CGRect>] = [:]
-}
-
-private struct BoardAnchorsPreferenceKey: PreferenceKey {
-    static var defaultValue = BoardAnchors()
-
-    static func reduce(value: inout BoardAnchors, nextValue: () -> BoardAnchors) {
-        let next = nextValue()
-        value.cards.merge(next.cards, uniquingKeysWith: { _, latest in latest })
-        value.columnScrollports.merge(next.columnScrollports, uniquingKeysWith: { _, latest in latest })
-    }
-}
-
 struct ContentView: View {
     @EnvironmentObject private var store: BoardStore
     @State private var showingNewProject = false
@@ -146,6 +131,8 @@ private struct BoardView: View {
     @State private var editingColumn: BoardColumn?
     @State private var editingProject = false
     @State private var selectedOpportunityID: UUID?
+    @State private var cardFrames: [UUID: CGRect] = [:]
+    @State private var columnScrollportFrames: [UUID: CGRect] = [:]
 
     private var project: BoardProject? { store.project(projectID) }
 
@@ -168,15 +155,14 @@ private struct BoardView: View {
                             .foregroundStyle(Palette.ink)
                         }
                         .padding(18)
-                        .overlayPreferenceValue(BoardAnchorsPreferenceKey.self) { anchors in
-                            GeometryReader { proxy in
-                                Canvas { context, _ in
-                                    drawConnectors(for: project, anchors: anchors, proxy: proxy, context: &context)
-                                }
-                                .zIndex(100)
-                                .allowsHitTesting(false)
-                                .accessibilityHidden(true)
+                        .coordinateSpace(name: "board")
+                        .overlay {
+                            Canvas { context, _ in
+                                drawConnectors(for: project, context: &context)
                             }
+                            .zIndex(100)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
                         }
                     }
                     .background(Palette.paper)
@@ -307,8 +293,10 @@ private struct BoardView: View {
                 .buttonStyle(.plain)
                 .zIndex(Double(cardIndex))
                 .opacity(cardOpacity(for: task, isLeadColumn: isLeadColumn))
-                .anchorPreference(key: BoardAnchorsPreferenceKey.self, value: .bounds) {
-                    BoardAnchors(cards: [task.id: $0])
+                .onGeometryChange(for: CGRect.self) { geometry in
+                    geometry.frame(in: .named("board"))
+                } action: { frame in
+                    cardFrames[task.id] = frame
                 }
                 .draggable(task.id.uuidString)
                 .dropDestination(for: String.self) { items, _ in
@@ -355,8 +343,10 @@ private struct BoardView: View {
             }
             .scrollIndicators(.visible)
             .frame(height: max(190, viewportHeight - 185))
-            .anchorPreference(key: BoardAnchorsPreferenceKey.self, value: .bounds) {
-                BoardAnchors(columnScrollports: [column.id: $0])
+            .onGeometryChange(for: CGRect.self) { geometry in
+                geometry.frame(in: .named("board"))
+            } action: { frame in
+                columnScrollportFrames[column.id] = frame
             }
 
             Button { newTaskColumnID = column.id } label: {
@@ -424,23 +414,17 @@ private struct BoardView: View {
         column.color?.tint.opacity(0.16) ?? Palette.surface
     }
 
-    private func drawConnectors(for project: BoardProject,
-                                anchors: BoardAnchors,
-                                proxy: GeometryProxy,
-                                context: inout GraphicsContext) {
+    private func drawConnectors(for project: BoardProject, context: inout GraphicsContext) {
         for task in project.tasks {
             guard let opportunity = resolvedOpportunity(for: task, in: project) else { continue }
             let opportunityID = opportunity.id
-            guard
-                  let opportunityAnchor = anchors.cards[opportunityID],
-                  let taskAnchor = anchors.cards[task.id] else { continue }
+            guard let opportunityRawFrame = cardFrames[opportunityID],
+                  let taskRawFrame = cardFrames[task.id] else { continue }
 
             let opportunityFrame = displayedCardFrame(for: opportunity, in: project,
-                                                      rawFrame: proxy[opportunityAnchor],
-                                                      anchors: anchors, proxy: proxy)
+                                                      rawFrame: opportunityRawFrame)
             let taskFrame = displayedCardFrame(for: task, in: project,
-                                               rawFrame: proxy[taskAnchor],
-                                               anchors: anchors, proxy: proxy)
+                                               rawFrame: taskRawFrame)
             let travelsRight = taskFrame.midX >= opportunityFrame.midX
             let start = cardEdgePoint(for: opportunityFrame, facingRight: travelsRight)
             let end = cardEdgePoint(for: taskFrame, facingRight: !travelsRight)
@@ -487,14 +471,12 @@ private struct BoardView: View {
     }
 
     private func displayedCardFrame(for task: BoardTask, in project: BoardProject,
-                                    rawFrame: CGRect, anchors: BoardAnchors,
-                                    proxy: GeometryProxy) -> CGRect {
+                                    rawFrame: CGRect) -> CGRect {
         guard let leadColumn = project.columns.first,
               task.columnID == leadColumn.id,
-              let scrollportAnchor = anchors.columnScrollports[leadColumn.id] else { return rawFrame }
+              let scrollportFrame = columnScrollportFrames[leadColumn.id] else { return rawFrame }
         let opportunities = project.tasks.filter { $0.columnID == leadColumn.id }
         guard let index = opportunities.firstIndex(where: { $0.id == task.id }) else { return rawFrame }
-        let scrollportFrame = proxy[scrollportAnchor]
         let stackedY = scrollportFrame.minY + min(CGFloat(index) * 10, 50)
         return rawFrame.offsetBy(dx: 0, dy: max(0, stackedY - rawFrame.minY))
     }
