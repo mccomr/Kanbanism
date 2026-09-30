@@ -207,6 +207,7 @@ private struct BoardView: View {
               .accessibilityHidden(true)
             }
           }
+          .scrollClipDisabled()
           .background(Palette.paper)
         }
         .navigationTitle(project.name)
@@ -346,7 +347,7 @@ private struct BoardView: View {
               .overlay(RoundedRectangle(cornerRadius: 15).stroke(Palette.line))
             }
             .buttonStyle(.plain)
-            .zIndex(Double(cardIndex))
+            .zIndex(cardDragState?.taskID == task.id ? 10_000 : Double(cardIndex))
             .opacity(cardOpacity(for: task, isLeadColumn: isLeadColumn))
             .visualEffect { content, geometry in
               content.offset(
@@ -417,6 +418,7 @@ private struct BoardView: View {
         .padding(.vertical, 2)
       }
       .scrollIndicators(.visible)
+      .scrollClipDisabled()
       .frame(height: max(190, viewportHeight - 185))
       .onGeometryChange(for: CGRect.self) { geometry in
         geometry.frame(in: .named("board"))
@@ -444,6 +446,7 @@ private struct BoardView: View {
       RoundedRectangle(cornerRadius: 21)
         .stroke(Color.white.opacity(0.72), lineWidth: 1)
     }
+    .zIndex(tasks.contains(where: { $0.id == cardDragState?.taskID }) ? 1_000 : 0)
     .dropDestination(for: String.self) { items, _ in
       guard let first = items.first, let id = UUID(uuidString: first) else { return false }
       if project.tasks.contains(where: { $0.id == id }) {
@@ -580,6 +583,9 @@ private struct BoardView: View {
   }
 
   private func connectorMaskOpacity(for task: BoardTask, in project: BoardProject) -> Double {
+    if let draggedTaskID = cardDragState?.taskID {
+      return task.id == draggedTaskID ? 1 : 0
+    }
     guard let selectedOpportunityID else { return 1 }
     let isOpportunity = task.columnID == project.leadColumnID
     let relatedOpportunityID = isOpportunity ? task.id : project.opportunity(for: task)?.id
