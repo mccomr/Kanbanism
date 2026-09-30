@@ -14,12 +14,21 @@ private enum Palette {
 private extension ProjectColor {
     var tint: Color {
         switch self {
-        case .blush: Color(red: 0.98, green: 0.84, blue: 0.87)
-        case .peach: Color(red: 1.00, green: 0.88, blue: 0.78)
-        case .butter: Color(red: 0.98, green: 0.93, blue: 0.72)
-        case .mint: Color(red: 0.80, green: 0.93, blue: 0.85)
-        case .sky: Color(red: 0.80, green: 0.89, blue: 0.98)
-        case .lilac: Color(red: 0.88, green: 0.84, blue: 0.97)
+        case .blush: Color(red: 1.00, green: 0.57, blue: 0.70)
+        case .coral: Color(red: 1.00, green: 0.48, blue: 0.42)
+        case .peach: Color(red: 1.00, green: 0.67, blue: 0.39)
+        case .tangerine: Color(red: 1.00, green: 0.53, blue: 0.18)
+        case .butter: Color(red: 1.00, green: 0.86, blue: 0.35)
+        case .lemon: Color(red: 0.95, green: 0.96, blue: 0.31)
+        case .lime: Color(red: 0.65, green: 0.94, blue: 0.30)
+        case .mint: Color(red: 0.37, green: 0.92, blue: 0.58)
+        case .teal: Color(red: 0.25, green: 0.88, blue: 0.76)
+        case .aqua: Color(red: 0.26, green: 0.88, blue: 0.94)
+        case .sky: Color(red: 0.39, green: 0.73, blue: 1.00)
+        case .cobalt: Color(red: 0.43, green: 0.55, blue: 1.00)
+        case .lilac: Color(red: 0.67, green: 0.52, blue: 1.00)
+        case .violet: Color(red: 0.79, green: 0.45, blue: 1.00)
+        case .magenta: Color(red: 0.98, green: 0.42, blue: 0.88)
         }
     }
 }
@@ -83,7 +92,7 @@ struct ContentView: View {
                                     }
                                     .padding(20)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Palette.surface, in: RoundedRectangle(cornerRadius: 20))
+                                    .background(project.color.tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 20))
                                     .overlay(alignment: .leading) {
                                         RoundedRectangle(cornerRadius: 2)
                                             .fill(project.color.tint)
@@ -403,7 +412,7 @@ private struct ProjectEditor: View {
                 Section("Project") {
                     TextField("Project name", text: $name)
                 }
-                Section("Pastel color") {
+                Section("Board color") {
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 14) {
                         ForEach(ProjectColor.allCases) { option in
                             Button {
@@ -434,7 +443,7 @@ private struct ProjectEditor: View {
                     .padding(.vertical, 8)
                 }
                 Section {
-                    Text("Tasks use this color unless you choose a different color for an individual task.")
+                    Text("New opportunities start with this color, and you can give each opportunity its own bright color.")
                         .font(.footnote)
                         .foregroundStyle(Palette.muted)
                 }

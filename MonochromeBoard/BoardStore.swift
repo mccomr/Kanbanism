@@ -42,7 +42,8 @@ struct BoardColumn: Identifiable, Codable, Equatable {
 }
 
 enum ProjectColor: String, CaseIterable, Codable, Identifiable {
-    case blush, peach, butter, mint, sky, lilac
+    case blush, coral, peach, tangerine, butter, lemon, lime, mint
+    case teal, aqua, sky, cobalt, lilac, violet, magenta
 
     var id: String { rawValue }
     var name: String { rawValue.capitalized }
