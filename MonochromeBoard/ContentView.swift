@@ -139,38 +139,41 @@ private struct BoardView: View {
     @State private var newTaskColumnID: UUID?
     @State private var editingColumn: BoardColumn?
     @State private var editingProject = false
+    @State private var selectedOpportunityID: UUID?
 
     private var project: BoardProject? { store.project(projectID) }
 
     var body: some View {
         Group {
             if let project {
-                ScrollView(.horizontal) {
-                    HStack(alignment: .top, spacing: 14) {
-                        ForEach(project.columns) { column in
-                            columnView(column, project: project)
-                        }
-                        Button { showingNewColumn = true } label: {
-                            Label("Add column", systemImage: "plus")
-                                .font(.subheadline.weight(.semibold))
-                                .frame(width: 230, height: 56)
-                                .background(Palette.surface, in: RoundedRectangle(cornerRadius: 16))
-                                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Palette.line, style: StrokeStyle(dash: [6])))
-                        }
-                        .foregroundStyle(Palette.ink)
-                    }
-                    .padding(18)
-                    .overlayPreferenceValue(CardBoundsPreferenceKey.self) { anchors in
-                        GeometryReader { proxy in
-                            Canvas { context, _ in
-                                drawConnectors(for: project, anchors: anchors, proxy: proxy, context: &context)
+                GeometryReader { geometry in
+                    ScrollView(.horizontal) {
+                        HStack(alignment: .top, spacing: 14) {
+                            ForEach(project.columns) { column in
+                                columnView(column, project: project, viewportHeight: geometry.size.height)
                             }
-                            .allowsHitTesting(false)
-                            .accessibilityHidden(true)
+                            Button { showingNewColumn = true } label: {
+                                Label("Add column", systemImage: "plus")
+                                    .font(.subheadline.weight(.semibold))
+                                    .frame(width: 230, height: 56)
+                                    .background(Palette.surface, in: RoundedRectangle(cornerRadius: 16))
+                                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(Palette.line, style: StrokeStyle(dash: [6])))
+                            }
+                            .foregroundStyle(Palette.ink)
+                        }
+                        .padding(18)
+                        .backgroundPreferenceValue(CardBoundsPreferenceKey.self) { anchors in
+                            GeometryReader { proxy in
+                                Canvas { context, _ in
+                                    drawConnectors(for: project, anchors: anchors, proxy: proxy, context: &context)
+                                }
+                                .allowsHitTesting(false)
+                                .accessibilityHidden(true)
+                            }
                         }
                     }
+                    .background(Palette.paper)
                 }
-                .background(Palette.paper)
                 .navigationTitle(project.name)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -201,7 +204,7 @@ private struct BoardView: View {
         }
     }
 
-    private func columnView(_ column: BoardColumn, project: BoardProject) -> some View {
+    private func columnView(_ column: BoardColumn, project: BoardProject, viewportHeight: CGFloat) -> some View {
         let tasks = project.tasks.filter { $0.columnID == column.id }
         let isLeadColumn = project.columns.first?.id == column.id
         return VStack(alignment: .leading, spacing: 15) {
@@ -250,9 +253,18 @@ private struct BoardView: View {
             .draggable(isLeadColumn ? "" : column.id.uuidString)
             .accessibilityHint("Drag to reorder columns")
 
+            ScrollView(.vertical) {
             VStack(spacing: column.isStacked ? -44 : 15) {
             ForEach(Array(tasks.enumerated()), id: \.element.id) { cardIndex, task in
-                Button { editingTask = task } label: {
+                Button {
+                    if isLeadColumn {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            selectedOpportunityID = selectedOpportunityID == task.id ? nil : task.id
+                        }
+                    } else {
+                        editingTask = task
+                    }
+                } label: {
                     VStack(alignment: .leading, spacing: 12) {
                         Text(task.title)
                             .font(.system(size: 16, weight: .semibold))
@@ -288,6 +300,7 @@ private struct BoardView: View {
                 }
                 .buttonStyle(.plain)
                 .zIndex(Double(cardIndex))
+                .opacity(cardOpacity(for: task, isLeadColumn: isLeadColumn))
                 .anchorPreference(key: CardBoundsPreferenceKey.self, value: .bounds) {
                     [task.id: $0]
                 }
@@ -302,6 +315,9 @@ private struct BoardView: View {
                     return true
                 }
                 .contextMenu {
+                    if isLeadColumn {
+                        Button("Edit opportunity", systemImage: "pencil") { editingTask = task }
+                    }
                     if let index = tasks.firstIndex(where: { $0.id == task.id }) {
                         if index > 0 {
                             Button("Move up", systemImage: "arrow.up") {
@@ -328,6 +344,11 @@ private struct BoardView: View {
             }
             }
             .animation(.snappy, value: column.isStacked)
+            .animation(.easeInOut(duration: 0.2), value: selectedOpportunityID)
+            .padding(.vertical, 2)
+            }
+            .scrollIndicators(.visible)
+            .frame(height: max(190, viewportHeight - 185))
 
             Button { newTaskColumnID = column.id } label: {
                 Label(isLeadColumn ? "Add opportunity" : "Add task", systemImage: "plus")
@@ -359,6 +380,12 @@ private struct BoardView: View {
             }
             return false
         }
+    }
+
+    private func cardOpacity(for task: BoardTask, isLeadColumn: Bool) -> Double {
+        guard let selectedOpportunityID else { return 1 }
+        if isLeadColumn { return task.id == selectedOpportunityID ? 1 : 0.5 }
+        return task.opportunityID == selectedOpportunityID ? 1 : 0.5
     }
 
     private func taskColor(_ task: BoardTask, in project: BoardProject) -> ProjectColor {
@@ -401,14 +428,16 @@ private struct BoardView: View {
 
             context.stroke(path, with: .color(Palette.paper.opacity(0.92)),
                            style: StrokeStyle(lineWidth: 6, lineCap: .round))
-            context.stroke(path, with: .color((opportunity.color ?? project.color).tint.opacity(0.9)),
+            let connectorOpacity = selectedOpportunityID == nil || selectedOpportunityID == opportunityID ? 0.9 : 0.45
+            context.stroke(path, with: .color((opportunity.color ?? project.color).tint.opacity(connectorOpacity)),
                            style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
 
             let endpointSize: CGFloat = 7
             for point in [start, end] {
                 let dot = CGRect(x: point.x - endpointSize / 2, y: point.y - endpointSize / 2,
                                  width: endpointSize, height: endpointSize)
-                context.fill(Path(ellipseIn: dot), with: .color((opportunity.color ?? project.color).tint))
+                context.fill(Path(ellipseIn: dot),
+                             with: .color((opportunity.color ?? project.color).tint.opacity(connectorOpacity)))
             }
         }
     }
