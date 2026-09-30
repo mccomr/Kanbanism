@@ -378,9 +378,7 @@ private struct BoardView: View {
                     taskID: task.id,
                     translation: value.translation)
                   completeCardDrag(task, in: project)
-                  withAnimation(.snappy) {
-                    cardDragState = nil
-                  }
+                  cardDragState = nil
                   Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(250))
                     if suppressedCardTapID == task.id {
