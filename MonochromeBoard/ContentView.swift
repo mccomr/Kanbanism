@@ -160,7 +160,7 @@ private struct BoardView: View {
                         .foregroundStyle(Palette.ink)
                     }
                     .padding(18)
-                    .overlayPreferenceValue(CardBoundsPreferenceKey.self) { anchors in
+                    .backgroundPreferenceValue(CardBoundsPreferenceKey.self) { anchors in
                         GeometryReader { proxy in
                             Canvas { context, _ in
                                 drawConnectors(for: project, anchors: anchors, proxy: proxy, context: &context)
@@ -340,7 +340,7 @@ private struct BoardView: View {
     }
 
     private func columnBackground(_ column: BoardColumn) -> Color {
-        column.color?.tint.opacity(0.16) ?? Palette.surface
+        column.color?.tint.opacity(0.13) ?? Palette.surface.opacity(0.86)
     }
 
     private func drawConnectors(for project: BoardProject,
