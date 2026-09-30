@@ -197,15 +197,19 @@ private struct BoardView: View {
             .padding(18)
             .coordinateSpace(name: "board")
             .overlay {
-              Canvas { context, _ in
-                context.drawLayer { connectorLayer in
-                  drawConnectors(for: project, context: &connectorLayer)
-                  maskCardInteriors(for: project, context: &connectorLayer)
+              ZStack {
+                Canvas { context, _ in
+                  context.drawLayer { connectorLayer in
+                    drawConnectors(for: project, context: &connectorLayer)
+                    maskCardInteriors(for: project, context: &connectorLayer)
+                  }
                 }
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+
+                draggedCardOverlay(in: project)
               }
               .zIndex(100)
-              .allowsHitTesting(false)
-              .accessibilityHidden(true)
             }
           }
           .scrollClipDisabled()
@@ -315,42 +319,14 @@ private struct BoardView: View {
                 editingTask = task
               }
             } label: {
-              VStack(alignment: .leading, spacing: 12) {
-                Text(task.title)
-                  .font(.system(size: 16, weight: .semibold))
-                  .foregroundStyle(Palette.onPastel)
-                  .multilineTextAlignment(.leading)
-                if !task.details.isEmpty {
-                  Text(task.details)
-                    .font(.subheadline)
-                    .foregroundStyle(Palette.onPastel.opacity(0.65))
-                    .lineLimit(3)
-                    .multilineTextAlignment(.leading)
-                }
-                HStack {
-                  Image(systemName: "circle.dotted")
-                  Text(isLeadColumn ? task.leadKind.name.uppercased() : "TASK")
-                    .tracking(1)
-                  if !isLeadColumn,
-                    let opportunity = project.opportunity(for: task)
-                  {
-                    Text("·  \(opportunity.title.uppercased())")
-                      .lineLimit(1)
-                  }
-                  Spacer()
-                  Image(systemName: "arrow.left.arrow.right")
-                }
-                .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                .foregroundStyle(Palette.onPastel.opacity(0.65))
-              }
-              .padding(16)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .background(taskColor(task, in: project).tint, in: RoundedRectangle(cornerRadius: 15))
-              .overlay(RoundedRectangle(cornerRadius: 15).stroke(Palette.line))
+              cardContent(task, isLeadColumn: isLeadColumn, project: project)
             }
             .buttonStyle(.plain)
             .zIndex(cardDragState?.taskID == task.id ? 10_000 : Double(cardIndex))
-            .opacity(cardOpacity(for: task, isLeadColumn: isLeadColumn))
+            .opacity(
+              cardDragState?.taskID == task.id
+                ? 0 : cardOpacity(for: task, isLeadColumn: isLeadColumn)
+            )
             .visualEffect { content, geometry in
               content.offset(
                 x: dragTranslation.width,
@@ -468,6 +444,57 @@ private struct BoardView: View {
     }
   }
 
+  private func cardContent(_ task: BoardTask, isLeadColumn: Bool, project: BoardProject)
+    -> some View
+  {
+    VStack(alignment: .leading, spacing: 12) {
+      Text(task.title)
+        .font(.system(size: 16, weight: .semibold))
+        .foregroundStyle(Palette.onPastel)
+        .multilineTextAlignment(.leading)
+      if !task.details.isEmpty {
+        Text(task.details)
+          .font(.subheadline)
+          .foregroundStyle(Palette.onPastel.opacity(0.65))
+          .lineLimit(3)
+          .multilineTextAlignment(.leading)
+      }
+      HStack {
+        Image(systemName: "circle.dotted")
+        Text(isLeadColumn ? task.leadKind.name.uppercased() : "TASK")
+          .tracking(1)
+        if !isLeadColumn, let opportunity = project.opportunity(for: task) {
+          Text("·  \(opportunity.title.uppercased())")
+            .lineLimit(1)
+        }
+        Spacer()
+        Image(systemName: "arrow.left.arrow.right")
+      }
+      .font(.system(size: 10, weight: .semibold, design: .monospaced))
+      .foregroundStyle(Palette.onPastel.opacity(0.65))
+    }
+    .padding(16)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(taskColor(task, in: project).tint, in: RoundedRectangle(cornerRadius: 15))
+    .overlay(RoundedRectangle(cornerRadius: 15).stroke(Palette.line))
+  }
+
+  @ViewBuilder
+  private func draggedCardOverlay(in project: BoardProject) -> some View {
+    if let draggedTaskID = cardDragState?.taskID,
+      let task = project.tasks.first(where: { $0.id == draggedTaskID }),
+      let rawFrame = cardFrames[draggedTaskID]
+    {
+      let frame = displayedCardFrame(for: task, in: project, rawFrame: rawFrame)
+      cardContent(task, isLeadColumn: task.columnID == project.leadColumnID, project: project)
+        .frame(width: frame.width, height: frame.height)
+        .position(x: frame.midX, y: frame.midY)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+        .zIndex(1_000)
+    }
+  }
+
   private func cardOpacity(for task: BoardTask, isLeadColumn: Bool) -> Double {
     guard let selectedOpportunityID else { return 1 }
     if isLeadColumn { return task.id == selectedOpportunityID ? 1 : 0.25 }
@@ -581,11 +608,16 @@ private struct BoardView: View {
     for task in project.tasks {
       guard let rawFrame = cardFrames[task.id] else { continue }
       let frame = displayedCardFrame(for: task, in: project, rawFrame: rawFrame)
-        .insetBy(dx: 2, dy: 2)
+      let interior = frame.insetBy(dx: 3, dy: 3)
+      let borderPath = RoundedRectangle(cornerRadius: 15).path(in: frame.insetBy(dx: 0.5, dy: 0.5))
       let maskOpacity = connectorMaskOpacity(for: task, in: project)
       context.fill(
-        RoundedRectangle(cornerRadius: 13).path(in: frame),
+        RoundedRectangle(cornerRadius: 12).path(in: interior),
         with: .color(.black.opacity(maskOpacity)))
+      context.stroke(
+        borderPath,
+        with: .color(.black),
+        style: StrokeStyle(lineWidth: 9, lineCap: .round, lineJoin: .round))
     }
   }
 
