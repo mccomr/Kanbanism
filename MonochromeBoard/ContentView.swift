@@ -301,6 +301,8 @@ private struct BoardView: View {
       ScrollView(.vertical) {
         VStack(spacing: column.isStacked ? -44 : 15) {
           ForEach(Array(tasks.enumerated()), id: \.element.id) { cardIndex, task in
+            let dragTranslation: CGSize =
+              cardDragState?.taskID == task.id ? cardDragState?.translation ?? .zero : .zero
             Button {
               if isLeadColumn {
                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -348,18 +350,18 @@ private struct BoardView: View {
             .opacity(cardOpacity(for: task, isLeadColumn: isLeadColumn))
             .visualEffect { content, geometry in
               content.offset(
+                x: dragTranslation.width,
                 y: edgeStackOffset(
                   for: geometry.frame(in: .named("board")),
                   cardIndex: cardIndex,
                   cardCount: tasks.count,
-                  scrollportFrame: scrollportFrame))
+                  scrollportFrame: scrollportFrame) + dragTranslation.height)
             }
             .onGeometryChange(for: CGRect.self) { geometry in
               geometry.frame(in: .named("board"))
             } action: { frame in
               cardFrames[task.id] = frame
             }
-            .draggable(task.id.uuidString)
             .simultaneousGesture(
               DragGesture(minimumDistance: 8, coordinateSpace: .named("board"))
                 .onChanged { value in
@@ -371,24 +373,12 @@ private struct BoardView: View {
                   cardDragState = CardDragState(
                     taskID: task.id,
                     translation: value.translation)
-                  Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(180))
-                    if cardDragState?.taskID == task.id {
-                      cardDragState = nil
-                    }
+                  completeCardDrag(task, in: project)
+                  withAnimation(.snappy) {
+                    cardDragState = nil
                   }
                 }
             )
-            .dropDestination(for: String.self) { items, _ in
-              guard let value = items.first,
-                let draggedID = UUID(uuidString: value),
-                let draggedTask = project.tasks.first(where: { $0.id == draggedID }),
-                draggedTask.columnID == task.columnID,
-                draggedID != task.id
-              else { return false }
-              store.moveTask(draggedID, in: projectID, before: task.id)
-              return true
-            }
             .contextMenu {
               if isLeadColumn {
                 Button("Edit opportunity", systemImage: "pencil") { editingTask = task }
@@ -473,6 +463,42 @@ private struct BoardView: View {
     if isLeadColumn { return task.id == selectedOpportunityID ? 1 : 0.25 }
     guard let project else { return 1 }
     return project.opportunity(for: task)?.id == selectedOpportunityID ? 1 : 0.25
+  }
+
+  private func completeCardDrag(_ task: BoardTask, in project: BoardProject) {
+    guard let rawFrame = cardFrames[task.id] else { return }
+    let finalFrame = displayedCardFrame(for: task, in: project, rawFrame: rawFrame)
+    let isOpportunity = task.columnID == project.leadColumnID
+    let eligibleColumns = project.columns.filter { column in
+      isOpportunity ? column.id == project.leadColumnID : column.id != project.leadColumnID
+    }
+    guard
+      let destination = eligibleColumns.min(by: { lhs, rhs in
+        horizontalDistance(from: finalFrame.midX, to: lhs.id)
+          < horizontalDistance(from: finalFrame.midX, to: rhs.id)
+      })
+    else { return }
+
+    let destinationTasks = project.tasks.filter {
+      $0.columnID == destination.id && $0.id != task.id
+    }
+    let insertionTarget = destinationTasks.first { candidate in
+      guard let candidateRawFrame = cardFrames[candidate.id] else { return false }
+      let candidateFrame = displayedCardFrame(
+        for: candidate, in: project, rawFrame: candidateRawFrame)
+      return finalFrame.midY < candidateFrame.midY
+    }
+
+    if let insertionTarget {
+      store.moveTask(task.id, in: projectID, before: insertionTarget.id)
+    } else {
+      store.moveTaskToEnd(task.id, in: projectID, of: destination.id)
+    }
+  }
+
+  private func horizontalDistance(from x: CGFloat, to columnID: UUID) -> CGFloat {
+    guard let frame = columnScrollportFrames[columnID] else { return .greatestFiniteMagnitude }
+    return abs(x - frame.midX)
   }
 
   private func taskColor(_ task: BoardTask, in project: BoardProject) -> ProjectColor {

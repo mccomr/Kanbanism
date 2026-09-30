@@ -259,6 +259,17 @@ final class BoardStore: ObservableObject {
     save()
   }
 
+  func moveTaskToEnd(_ taskID: UUID, in projectID: UUID, of columnID: UUID) {
+    guard let projectIndex = projects.firstIndex(where: { $0.id == projectID }),
+      let taskIndex = projects[projectIndex].tasks.firstIndex(where: { $0.id == taskID }),
+      projects[projectIndex].columns.contains(where: { $0.id == columnID })
+    else { return }
+    var task = projects[projectIndex].tasks.remove(at: taskIndex)
+    task.columnID = columnID
+    projects[projectIndex].tasks.append(task)
+    save()
+  }
+
   func moveTask(_ taskID: UUID, in projectID: UUID, before targetID: UUID) {
     guard let projectIndex = projects.firstIndex(where: { $0.id == projectID }),
       let sourceIndex = projects[projectIndex].tasks.firstIndex(where: { $0.id == taskID }),
