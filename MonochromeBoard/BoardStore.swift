@@ -99,6 +99,7 @@ final class BoardStore: ObservableObject {
         if let data = try? Data(contentsOf: fileURL),
            let saved = try? JSONDecoder().decode([BoardProject].self, from: data) {
             projects = saved
+            repairOpportunityLinks()
         }
     }
 
@@ -244,5 +245,28 @@ final class BoardStore: ObservableObject {
     private func save() {
         guard let data = try? JSONEncoder().encode(projects) else { return }
         try? data.write(to: fileURL, options: .atomic)
+    }
+
+    private func repairOpportunityLinks() {
+        var changed = false
+        for projectIndex in projects.indices {
+            guard let leadColumnID = projects[projectIndex].columns.first?.id else { continue }
+            let opportunities = projects[projectIndex].tasks.filter { $0.columnID == leadColumnID }
+            guard !opportunities.isEmpty else { continue }
+            let opportunityIDs = Set(opportunities.map(\.id))
+
+            for taskIndex in projects[projectIndex].tasks.indices {
+                let task = projects[projectIndex].tasks[taskIndex]
+                guard task.columnID != leadColumnID,
+                      task.opportunityID == nil || !opportunityIDs.contains(task.opportunityID!) else { continue }
+                let match = task.color.flatMap { color in
+                    opportunities.first { $0.color == color }
+                } ?? opportunities[0]
+                projects[projectIndex].tasks[taskIndex].opportunityID = match.id
+                projects[projectIndex].tasks[taskIndex].color = match.color
+                changed = true
+            }
+        }
+        if changed { save() }
     }
 }

@@ -306,11 +306,6 @@ private struct BoardView: View {
                 }
                 .buttonStyle(.plain)
                 .zIndex(Double(cardIndex))
-                .visualEffect { content, geometry in
-                    let currentY = geometry.frame(in: .scrollView(axis: .vertical)).minY
-                    let stackedY = min(CGFloat(cardIndex) * 10, 50)
-                    return content.offset(y: isLeadColumn ? max(0, stackedY - currentY) : 0)
-                }
                 .opacity(cardOpacity(for: task, isLeadColumn: isLeadColumn))
                 .anchorPreference(key: BoardAnchorsPreferenceKey.self, value: .bounds) {
                     BoardAnchors(cards: [task.id: $0])
@@ -458,18 +453,35 @@ private struct BoardView: View {
                           control2: CGPoint(x: end.x - (travelsRight ? bend : -bend), y: end.y))
 
             context.stroke(path, with: .color(Palette.paper.opacity(0.92)),
-                           style: StrokeStyle(lineWidth: 7, lineCap: .round))
-            let connectorOpacity = selectedOpportunityID == nil || selectedOpportunityID == opportunityID ? 0.9 : 0.225
+                           style: StrokeStyle(lineWidth: 8, lineCap: .round, lineJoin: .round))
+            let connectorOpacity = selectedOpportunityID == nil || selectedOpportunityID == opportunityID ? 1.0 : 0.25
             context.stroke(path, with: .color((opportunity.color ?? project.color).tint.opacity(connectorOpacity)),
-                           style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
+                           style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
 
-            let endpointSize: CGFloat = 7
+            let endpointSize: CGFloat = 8
             for point in [start, end] {
                 let dot = CGRect(x: point.x - endpointSize / 2, y: point.y - endpointSize / 2,
                                  width: endpointSize, height: endpointSize)
+                context.fill(Path(ellipseIn: dot.insetBy(dx: -2, dy: -2)),
+                             with: .color(Palette.paper.opacity(0.95)))
                 context.fill(Path(ellipseIn: dot),
                              with: .color((opportunity.color ?? project.color).tint.opacity(connectorOpacity)))
             }
+
+            let arrowDirection: CGFloat = travelsRight ? 1 : -1
+            var arrow = Path()
+            arrow.move(to: end)
+            arrow.addLine(to: CGPoint(x: end.x - arrowDirection * 12, y: end.y - 7))
+            arrow.addLine(to: CGPoint(x: end.x - arrowDirection * 12, y: end.y + 7))
+            arrow.closeSubpath()
+            context.fill(arrow, with: .color(Palette.paper.opacity(0.95)))
+            var innerArrow = Path()
+            innerArrow.move(to: CGPoint(x: end.x - arrowDirection * 2, y: end.y))
+            innerArrow.addLine(to: CGPoint(x: end.x - arrowDirection * 10, y: end.y - 5))
+            innerArrow.addLine(to: CGPoint(x: end.x - arrowDirection * 10, y: end.y + 5))
+            innerArrow.closeSubpath()
+            context.fill(innerArrow,
+                         with: .color((opportunity.color ?? project.color).tint.opacity(connectorOpacity)))
         }
 
     }
