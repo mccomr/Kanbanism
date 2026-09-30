@@ -521,10 +521,18 @@ private struct BoardView: View {
       guard let rawFrame = cardFrames[task.id] else { continue }
       let frame = displayedCardFrame(for: task, in: project, rawFrame: rawFrame)
         .insetBy(dx: 2, dy: 2)
+      let maskOpacity = connectorMaskOpacity(for: task, in: project)
       context.fill(
         RoundedRectangle(cornerRadius: 13).path(in: frame),
-        with: .color(.black))
+        with: .color(.black.opacity(maskOpacity)))
     }
+  }
+
+  private func connectorMaskOpacity(for task: BoardTask, in project: BoardProject) -> Double {
+    guard let selectedOpportunityID else { return 1 }
+    let isOpportunity = task.columnID == project.leadColumnID
+    let relatedOpportunityID = isOpportunity ? task.id : project.opportunity(for: task)?.id
+    return relatedOpportunityID == selectedOpportunityID ? 1 : 0.25
   }
 
   private func displayedCardFrame(
