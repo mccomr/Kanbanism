@@ -173,6 +173,7 @@ private struct BoardView: View {
                                 Canvas { context, _ in
                                     drawConnectors(for: project, anchors: anchors, proxy: proxy, context: &context)
                                 }
+                                .zIndex(100)
                                 .allowsHitTesting(false)
                                 .accessibilityHidden(true)
                             }
