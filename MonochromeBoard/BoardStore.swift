@@ -75,7 +75,9 @@ struct BoardProject: Identifiable, Codable, Equatable {
         name = try values.decode(String.self, forKey: .name)
         color = try values.decodeIfPresent(ProjectColor.self, forKey: .color) ?? .lilac
         columns = try values.decode([BoardColumn].self, forKey: .columns)
-        if columns.first?.name == "To Do" { columns[0].name = "Opportunity Leads" }
+        if let firstIndex = columns.indices.first, columns[firstIndex].name == "To Do" {
+            columns[firstIndex].name = "Opportunity Leads"
+        }
         tasks = try values.decode([BoardTask].self, forKey: .tasks)
     }
 }
@@ -87,7 +89,8 @@ final class BoardStore: ObservableObject {
     private let fileURL: URL
 
     init() {
-        let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         fileURL = directory.appendingPathComponent("boards.json")
         if let data = try? Data(contentsOf: fileURL),
@@ -137,7 +140,7 @@ final class BoardStore: ObservableObject {
         guard let index = projects.firstIndex(where: { $0.id == projectID }),
               projects[index].columns.count > 1,
               projects[index].columns.first?.id != columnID else { return }
-        let destination = projects[index].columns.first { $0.id != columnID }!.id
+        guard let destination = projects[index].columns.first(where: { $0.id != columnID })?.id else { return }
         for taskIndex in projects[index].tasks.indices where projects[index].tasks[taskIndex].columnID == columnID {
             projects[index].tasks[taskIndex].columnID = destination
         }
