@@ -162,7 +162,7 @@ private struct BoardView: View {
                             .foregroundStyle(Palette.ink)
                         }
                         .padding(18)
-                        .backgroundPreferenceValue(CardBoundsPreferenceKey.self) { anchors in
+                        .overlayPreferenceValue(CardBoundsPreferenceKey.self) { anchors in
                             GeometryReader { proxy in
                                 Canvas { context, _ in
                                     drawConnectors(for: project, anchors: anchors, proxy: proxy, context: &context)
@@ -439,6 +439,13 @@ private struct BoardView: View {
                 context.fill(Path(ellipseIn: dot),
                              with: .color((opportunity.color ?? project.color).tint.opacity(connectorOpacity)))
             }
+        }
+
+        // Keep connectors above column surfaces while leaving every card face unobstructed.
+        context.blendMode = .destinationOut
+        for anchor in anchors.values {
+            let cardFrame = proxy[anchor].insetBy(dx: 2, dy: 2)
+            context.fill(Path(roundedRect: cardFrame, cornerRadius: 13), with: .color(.black))
         }
     }
 }
