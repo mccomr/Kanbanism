@@ -384,8 +384,8 @@ private struct BoardView: View {
 
     private func cardOpacity(for task: BoardTask, isLeadColumn: Bool) -> Double {
         guard let selectedOpportunityID else { return 1 }
-        if isLeadColumn { return task.id == selectedOpportunityID ? 1 : 0.5 }
-        return task.opportunityID == selectedOpportunityID ? 1 : 0.5
+        if isLeadColumn { return task.id == selectedOpportunityID ? 1 : 0.25 }
+        return task.opportunityID == selectedOpportunityID ? 1 : 0.25
     }
 
     private func taskColor(_ task: BoardTask, in project: BoardProject) -> ProjectColor {
@@ -428,7 +428,7 @@ private struct BoardView: View {
 
             context.stroke(path, with: .color(Palette.paper.opacity(0.92)),
                            style: StrokeStyle(lineWidth: 6, lineCap: .round))
-            let connectorOpacity = selectedOpportunityID == nil || selectedOpportunityID == opportunityID ? 0.9 : 0.45
+            let connectorOpacity = selectedOpportunityID == nil || selectedOpportunityID == opportunityID ? 0.9 : 0.225
             context.stroke(path, with: .color((opportunity.color ?? project.color).tint.opacity(connectorOpacity)),
                            style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
 
