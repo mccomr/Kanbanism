@@ -36,6 +36,11 @@ private struct ColumnSelection: Identifiable {
   let id: UUID
 }
 
+private struct CardDragState: Equatable {
+  let taskID: UUID
+  var translation: CGSize
+}
+
 private func edgeStackOffset(
   for cardFrame: CGRect,
   cardIndex: Int,
@@ -162,6 +167,7 @@ private struct BoardView: View {
   @State private var selectedOpportunityID: UUID?
   @State private var cardFrames: [UUID: CGRect] = [:]
   @State private var columnScrollportFrames: [UUID: CGRect] = [:]
+  @State private var cardDragState: CardDragState?
 
   private var project: BoardProject? { store.project(projectID) }
 
@@ -354,6 +360,25 @@ private struct BoardView: View {
               cardFrames[task.id] = frame
             }
             .draggable(task.id.uuidString)
+            .simultaneousGesture(
+              DragGesture(minimumDistance: 8, coordinateSpace: .named("board"))
+                .onChanged { value in
+                  cardDragState = CardDragState(
+                    taskID: task.id,
+                    translation: value.translation)
+                }
+                .onEnded { value in
+                  cardDragState = CardDragState(
+                    taskID: task.id,
+                    translation: value.translation)
+                  Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(180))
+                    if cardDragState?.taskID == task.id {
+                      cardDragState = nil
+                    }
+                  }
+                }
+            )
             .dropDestination(for: String.self) { items, _ in
               guard let value = items.first,
                 let draggedID = UUID(uuidString: value),
@@ -541,13 +566,19 @@ private struct BoardView: View {
   ) -> CGRect {
     let columnTasks = project.tasks.filter { $0.columnID == task.columnID }
     guard let index = columnTasks.firstIndex(where: { $0.id == task.id }) else { return rawFrame }
-    return rawFrame.offsetBy(
+    var displayedFrame = rawFrame.offsetBy(
       dx: 0,
       dy: edgeStackOffset(
         for: rawFrame,
         cardIndex: index,
         cardCount: columnTasks.count,
         scrollportFrame: columnScrollportFrames[task.columnID]))
+    if let cardDragState, cardDragState.taskID == task.id {
+      displayedFrame = displayedFrame.offsetBy(
+        dx: cardDragState.translation.width,
+        dy: cardDragState.translation.height)
+    }
+    return displayedFrame
   }
 
   private func cardEdgePoint(for frame: CGRect, facingRight: Bool) -> CGPoint {
