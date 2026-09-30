@@ -33,12 +33,18 @@ private extension ProjectColor {
     }
 }
 
-private struct CardBoundsPreferenceKey: PreferenceKey {
-    static var defaultValue: [UUID: Anchor<CGRect>] = [:]
+private struct BoardAnchors {
+    var cards: [UUID: Anchor<CGRect>] = [:]
+    var columnScrollports: [UUID: Anchor<CGRect>] = [:]
+}
 
-    static func reduce(value: inout [UUID: Anchor<CGRect>],
-                       nextValue: () -> [UUID: Anchor<CGRect>]) {
-        value.merge(nextValue(), uniquingKeysWith: { _, latest in latest })
+private struct BoardAnchorsPreferenceKey: PreferenceKey {
+    static var defaultValue = BoardAnchors()
+
+    static func reduce(value: inout BoardAnchors, nextValue: () -> BoardAnchors) {
+        let next = nextValue()
+        value.cards.merge(next.cards, uniquingKeysWith: { _, latest in latest })
+        value.columnScrollports.merge(next.columnScrollports, uniquingKeysWith: { _, latest in latest })
     }
 }
 
@@ -162,7 +168,7 @@ private struct BoardView: View {
                             .foregroundStyle(Palette.ink)
                         }
                         .padding(18)
-                        .overlayPreferenceValue(CardBoundsPreferenceKey.self) { anchors in
+                        .overlayPreferenceValue(BoardAnchorsPreferenceKey.self) { anchors in
                             GeometryReader { proxy in
                                 Canvas { context, _ in
                                     drawConnectors(for: project, anchors: anchors, proxy: proxy, context: &context)
@@ -306,8 +312,8 @@ private struct BoardView: View {
                     return content.offset(y: isLeadColumn ? max(0, stackedY - currentY) : 0)
                 }
                 .opacity(cardOpacity(for: task, isLeadColumn: isLeadColumn))
-                .anchorPreference(key: CardBoundsPreferenceKey.self, value: .bounds) {
-                    [task.id: $0]
+                .anchorPreference(key: BoardAnchorsPreferenceKey.self, value: .bounds) {
+                    BoardAnchors(cards: [task.id: $0])
                 }
                 .draggable(task.id.uuidString)
                 .dropDestination(for: String.self) { items, _ in
@@ -354,6 +360,9 @@ private struct BoardView: View {
             }
             .scrollIndicators(.visible)
             .frame(height: max(190, viewportHeight - 185))
+            .anchorPreference(key: BoardAnchorsPreferenceKey.self, value: .bounds) {
+                BoardAnchors(columnScrollports: [column.id: $0])
+            }
 
             Button { newTaskColumnID = column.id } label: {
                 Label(isLeadColumn ? "Add opportunity" : "Add task", systemImage: "plus")
@@ -407,16 +416,18 @@ private struct BoardView: View {
     }
 
     private func drawConnectors(for project: BoardProject,
-                                anchors: [UUID: Anchor<CGRect>],
+                                anchors: BoardAnchors,
                                 proxy: GeometryProxy,
                                 context: inout GraphicsContext) {
         for task in project.tasks {
             guard let opportunityID = task.opportunityID,
                   let opportunity = project.tasks.first(where: { $0.id == opportunityID }),
-                  let opportunityAnchor = anchors[opportunityID],
-                  let taskAnchor = anchors[task.id] else { continue }
+                  let opportunityAnchor = anchors.cards[opportunityID],
+                  let taskAnchor = anchors.cards[task.id] else { continue }
 
-            let opportunityFrame = proxy[opportunityAnchor]
+            let opportunityFrame = displayedCardFrame(for: opportunity, in: project,
+                                                      rawFrame: proxy[opportunityAnchor],
+                                                      anchors: anchors, proxy: proxy)
             let taskFrame = proxy[taskAnchor]
             let travelsRight = taskFrame.midX >= opportunityFrame.midX
             let start = CGPoint(x: travelsRight ? opportunityFrame.maxX : opportunityFrame.minX,
@@ -448,10 +459,26 @@ private struct BoardView: View {
 
         // Keep connectors above column surfaces while leaving every card face unobstructed.
         context.blendMode = .destinationOut
-        for anchor in anchors.values {
-            let cardFrame = proxy[anchor].insetBy(dx: 2, dy: 2)
+        for (taskID, anchor) in anchors.cards {
+            guard let task = project.tasks.first(where: { $0.id == taskID }) else { continue }
+            let displayedFrame = displayedCardFrame(for: task, in: project,
+                                                    rawFrame: proxy[anchor], anchors: anchors, proxy: proxy)
+            let cardFrame = displayedFrame.insetBy(dx: 2, dy: 2)
             context.fill(Path(roundedRect: cardFrame, cornerRadius: 13), with: .color(.black))
         }
+    }
+
+    private func displayedCardFrame(for task: BoardTask, in project: BoardProject,
+                                    rawFrame: CGRect, anchors: BoardAnchors,
+                                    proxy: GeometryProxy) -> CGRect {
+        guard let leadColumn = project.columns.first,
+              task.columnID == leadColumn.id,
+              let scrollportAnchor = anchors.columnScrollports[leadColumn.id] else { return rawFrame }
+        let opportunities = project.tasks.filter { $0.columnID == leadColumn.id }
+        guard let index = opportunities.firstIndex(where: { $0.id == task.id }) else { return rawFrame }
+        let scrollportFrame = proxy[scrollportAnchor]
+        let stackedY = scrollportFrame.minY + min(CGFloat(index) * 10, 50)
+        return rawFrame.offsetBy(dx: 0, dy: max(0, stackedY - rawFrame.minY))
     }
 }
 
