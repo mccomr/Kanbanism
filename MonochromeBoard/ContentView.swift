@@ -135,10 +135,9 @@ private struct BoardView: View {
     @EnvironmentObject private var store: BoardStore
     let projectID: UUID
     @State private var showingNewColumn = false
-    @State private var columnName = ""
     @State private var editingTask: BoardTask?
     @State private var newTaskColumnID: UUID?
-    @State private var renameColumn: BoardColumn?
+    @State private var editingColumn: BoardColumn?
     @State private var editingProject = false
 
     private var project: BoardProject? { store.project(projectID) }
@@ -184,29 +183,15 @@ private struct BoardView: View {
                 }
             }
         }
-        .alert("New column", isPresented: $showingNewColumn) {
-            TextField("Column name", text: $columnName)
-            Button("Cancel", role: .cancel) { columnName = "" }
-            Button("Add") {
-                if !columnName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    store.addColumn(to: projectID, name: columnName)
-                }
-                columnName = ""
-            }
+        .sheet(isPresented: $showingNewColumn) {
+            ColumnEditor(projectID: projectID, column: nil, isLeadColumn: false)
         }
         .sheet(isPresented: $editingProject) {
             if let project { ProjectEditor(project: project) }
         }
-        .alert("Rename column", isPresented: Binding(get: { renameColumn != nil }, set: { if !$0 { renameColumn = nil } })) {
-            TextField("Column name", text: $columnName)
-            Button("Cancel", role: .cancel) { renameColumn = nil }
-            Button("Save") {
-                if let column = renameColumn, !columnName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    store.renameColumn(column.id, in: projectID, to: columnName)
-                }
-                renameColumn = nil
-                columnName = ""
-            }
+        .sheet(item: $editingColumn) { column in
+            ColumnEditor(projectID: projectID, column: column,
+                         isLeadColumn: project?.columns.first?.id == column.id)
         }
         .sheet(item: $editingTask) { task in
             TaskEditor(projectID: projectID, task: task, initialColumnID: task.columnID)
@@ -233,11 +218,8 @@ private struct BoardView: View {
                     .foregroundStyle(Palette.muted)
                 Spacer()
                 Menu {
-                    if !isLeadColumn {
-                        Button("Rename", systemImage: "pencil") {
-                            columnName = column.name
-                            renameColumn = column
-                        }
+                    Button(isLeadColumn ? "Change background" : "Edit column", systemImage: "paintpalette") {
+                        editingColumn = column
                     }
                     if let index = project.columns.firstIndex(where: { $0.id == column.id }), !isLeadColumn {
                         if index > 1 {
@@ -329,7 +311,13 @@ private struct BoardView: View {
         .padding(15)
         .frame(width: 292, alignment: .topLeading)
         .frame(minHeight: 300, alignment: .top)
-        .background(Palette.surface, in: RoundedRectangle(cornerRadius: 21))
+        .background(columnBackground(column), in: RoundedRectangle(cornerRadius: 21))
+        .overlay {
+            if let color = column.color {
+                RoundedRectangle(cornerRadius: 21)
+                    .stroke(color.tint.opacity(0.34), lineWidth: 1)
+            }
+        }
         .dropDestination(for: String.self) { items, _ in
             guard let first = items.first, let id = UUID(uuidString: first) else { return false }
             if project.tasks.contains(where: { $0.id == id }) {
@@ -351,6 +339,10 @@ private struct BoardView: View {
             return task.color ?? project.color
         }
         return opportunity.color ?? project.color
+    }
+
+    private func columnBackground(_ column: BoardColumn) -> Color {
+        column.color?.tint.opacity(0.16) ?? Palette.surface
     }
 
     private func drawConnectors(for project: BoardProject,
@@ -390,6 +382,76 @@ private struct BoardView: View {
                 context.fill(Path(ellipseIn: dot), with: .color((opportunity.color ?? project.color).tint))
             }
         }
+    }
+}
+
+private struct ColumnEditor: View {
+    @EnvironmentObject private var store: BoardStore
+    @Environment(\.dismiss) private var dismiss
+    let projectID: UUID
+    let column: BoardColumn?
+    let isLeadColumn: Bool
+    @State private var name: String
+    @State private var colorChoice: String
+
+    init(projectID: UUID, column: BoardColumn?, isLeadColumn: Bool) {
+        self.projectID = projectID
+        self.column = column
+        self.isLeadColumn = isLeadColumn
+        _name = State(initialValue: column?.name ?? "")
+        _colorChoice = State(initialValue: column?.color?.rawValue ?? "none")
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Column") {
+                    if isLeadColumn {
+                        LabeledContent("Name", value: name)
+                    } else {
+                        TextField("Column name", text: $name)
+                    }
+                }
+                Section("Soft background") {
+                    Picker("Color", selection: $colorChoice) {
+                        HStack {
+                            Circle().fill(Palette.surface).frame(width: 18, height: 18)
+                            Text("Charcoal")
+                        }
+                        .tag("none")
+                        ForEach(ProjectColor.allCases) { option in
+                            HStack {
+                                Circle().fill(option.tint.opacity(0.55)).frame(width: 18, height: 18)
+                                Text(option.name)
+                            }
+                            .tag(option.rawValue)
+                        }
+                    }
+                    Text("The selected color is softened against the dark board so cards and connectors stay clear.")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.muted)
+                }
+            }
+            .navigationTitle(column == nil ? "New column" : "Edit column")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(column == nil ? "Add" : "Save") {
+                        let color = ProjectColor(rawValue: colorChoice)
+                        if let column {
+                            store.updateColumn(column.id, in: projectID, name: name, color: color)
+                        } else {
+                            store.addColumn(to: projectID, name: name, color: color)
+                        }
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+        .tint(Palette.ink)
     }
 }
 

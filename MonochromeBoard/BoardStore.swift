@@ -39,6 +39,7 @@ struct BoardTask: Identifiable, Codable, Equatable {
 struct BoardColumn: Identifiable, Codable, Equatable {
     var id: UUID = UUID()
     var name: String
+    var color: ProjectColor? = nil
 }
 
 enum ProjectColor: String, CaseIterable, Codable, Identifiable {
@@ -117,17 +118,18 @@ final class BoardStore: ObservableObject {
         save()
     }
 
-    func addColumn(to projectID: UUID, name: String) {
+    func addColumn(to projectID: UUID, name: String, color: ProjectColor?) {
         guard let index = projects.firstIndex(where: { $0.id == projectID }) else { return }
-        projects[index].columns.append(BoardColumn(name: name.trimmingCharacters(in: .whitespacesAndNewlines)))
+        projects[index].columns.append(BoardColumn(name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+                                                   color: color))
         save()
     }
 
-    func renameColumn(_ columnID: UUID, in projectID: UUID, to name: String) {
+    func updateColumn(_ columnID: UUID, in projectID: UUID, name: String, color: ProjectColor?) {
         guard let projectIndex = projects.firstIndex(where: { $0.id == projectID }),
-              projects[projectIndex].columns.first?.id != columnID,
               let columnIndex = projects[projectIndex].columns.firstIndex(where: { $0.id == columnID }) else { return }
         projects[projectIndex].columns[columnIndex].name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        projects[projectIndex].columns[columnIndex].color = color
         save()
     }
 
