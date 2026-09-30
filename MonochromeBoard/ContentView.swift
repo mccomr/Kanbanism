@@ -160,7 +160,7 @@ private struct BoardView: View {
                         .foregroundStyle(Palette.ink)
                     }
                     .padding(18)
-                    .backgroundPreferenceValue(CardBoundsPreferenceKey.self) { anchors in
+                    .overlayPreferenceValue(CardBoundsPreferenceKey.self) { anchors in
                         GeometryReader { proxy in
                             Canvas { context, _ in
                                 drawConnectors(for: project, anchors: anchors, proxy: proxy, context: &context)
@@ -221,6 +221,12 @@ private struct BoardView: View {
                     Button(isLeadColumn ? "Change background" : "Edit column", systemImage: "paintpalette") {
                         editingColumn = column
                     }
+                    Button(column.isStacked ? "Unstack tasks" : "Stack tasks",
+                           systemImage: column.isStacked ? "rectangle.3.group" : "square.stack.3d.up") {
+                        withAnimation(.snappy) {
+                            store.toggleTaskStacking(in: column.id, projectID: projectID)
+                        }
+                    }
                     if let index = project.columns.firstIndex(where: { $0.id == column.id }), !isLeadColumn {
                         if index > 1 {
                             Button("Move left", systemImage: "arrow.left") {
@@ -244,7 +250,8 @@ private struct BoardView: View {
             .draggable(isLeadColumn ? "" : column.id.uuidString)
             .accessibilityHint("Drag to reorder columns")
 
-            ForEach(tasks) { task in
+            VStack(spacing: column.isStacked ? -44 : 15) {
+            ForEach(Array(tasks.enumerated()), id: \.element.id) { cardIndex, task in
                 Button { editingTask = task } label: {
                     VStack(alignment: .leading, spacing: 12) {
                         Text(task.title)
@@ -280,6 +287,7 @@ private struct BoardView: View {
                     .overlay(RoundedRectangle(cornerRadius: 15).stroke(Palette.line))
                 }
                 .buttonStyle(.plain)
+                .zIndex(Double(cardIndex))
                 .anchorPreference(key: CardBoundsPreferenceKey.self, value: .bounds) {
                     [task.id: $0]
                 }
@@ -318,6 +326,8 @@ private struct BoardView: View {
                     }
                 }
             }
+            }
+            .animation(.snappy, value: column.isStacked)
 
             Button { newTaskColumnID = column.id } label: {
                 Label(isLeadColumn ? "Add opportunity" : "Add task", systemImage: "plus")
@@ -361,7 +371,7 @@ private struct BoardView: View {
     }
 
     private func columnBackground(_ column: BoardColumn) -> Color {
-        column.color?.tint.opacity(0.13) ?? Palette.surface.opacity(0.86)
+        column.color?.tint.opacity(0.16) ?? Palette.surface
     }
 
     private func drawConnectors(for project: BoardProject,

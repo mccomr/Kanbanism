@@ -40,6 +40,9 @@ struct BoardColumn: Identifiable, Codable, Equatable {
     var id: UUID = UUID()
     var name: String
     var color: ProjectColor? = nil
+    var stacksTasks: Bool? = nil
+
+    var isStacked: Bool { stacksTasks == true }
 }
 
 enum ProjectColor: String, CaseIterable, Codable, Identifiable {
@@ -133,6 +136,13 @@ final class BoardStore: ObservableObject {
               let columnIndex = projects[projectIndex].columns.firstIndex(where: { $0.id == columnID }) else { return }
         projects[projectIndex].columns[columnIndex].name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         projects[projectIndex].columns[columnIndex].color = color
+        save()
+    }
+
+    func toggleTaskStacking(in columnID: UUID, projectID: UUID) {
+        guard let projectIndex = projects.firstIndex(where: { $0.id == projectID }),
+              let columnIndex = projects[projectIndex].columns.firstIndex(where: { $0.id == columnID }) else { return }
+        projects[projectIndex].columns[columnIndex].stacksTasks = !projects[projectIndex].columns[columnIndex].isStacked
         save()
     }
 
