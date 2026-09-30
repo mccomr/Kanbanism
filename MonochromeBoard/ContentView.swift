@@ -191,7 +191,10 @@ private struct BoardView: View {
             .coordinateSpace(name: "board")
             .overlay {
               Canvas { context, _ in
-                drawConnectors(for: project, context: &context)
+                context.drawLayer { connectorLayer in
+                  drawConnectors(for: project, context: &connectorLayer)
+                  maskCardInteriors(for: project, context: &connectorLayer)
+                }
               }
               .zIndex(100)
               .allowsHitTesting(false)
@@ -508,6 +511,19 @@ private struct BoardView: View {
           with: .color((opportunity.color ?? project.color).tint.opacity(connectorOpacity)))
       }
 
+    }
+  }
+
+  private func maskCardInteriors(for project: BoardProject, context: inout GraphicsContext) {
+    context.blendMode = .destinationOut
+
+    for task in project.tasks {
+      guard let rawFrame = cardFrames[task.id] else { continue }
+      let frame = displayedCardFrame(for: task, in: project, rawFrame: rawFrame)
+        .insetBy(dx: 2, dy: 2)
+      context.fill(
+        RoundedRectangle(cornerRadius: 13).path(in: frame),
+        with: .color(.black))
     }
   }
 
