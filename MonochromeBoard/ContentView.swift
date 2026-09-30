@@ -168,6 +168,7 @@ private struct BoardView: View {
   @State private var cardFrames: [UUID: CGRect] = [:]
   @State private var columnScrollportFrames: [UUID: CGRect] = [:]
   @State private var cardDragState: CardDragState?
+  @State private var suppressedCardTapID: UUID?
 
   private var project: BoardProject? { store.project(projectID) }
 
@@ -305,6 +306,7 @@ private struct BoardView: View {
             let dragTranslation: CGSize =
               cardDragState?.taskID == task.id ? cardDragState?.translation ?? .zero : .zero
             Button {
+              guard suppressedCardTapID != task.id else { return }
               if isLeadColumn {
                 withAnimation(.easeInOut(duration: 0.2)) {
                   selectedOpportunityID = selectedOpportunityID == task.id ? nil : task.id
@@ -366,6 +368,7 @@ private struct BoardView: View {
             .simultaneousGesture(
               DragGesture(minimumDistance: 8, coordinateSpace: .named("board"))
                 .onChanged { value in
+                  suppressedCardTapID = task.id
                   cardDragState = CardDragState(
                     taskID: task.id,
                     translation: value.translation)
@@ -377,6 +380,12 @@ private struct BoardView: View {
                   completeCardDrag(task, in: project)
                   withAnimation(.snappy) {
                     cardDragState = nil
+                  }
+                  Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(250))
+                    if suppressedCardTapID == task.id {
+                      suppressedCardTapID = nil
+                    }
                   }
                 }
             )
