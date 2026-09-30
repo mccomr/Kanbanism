@@ -300,6 +300,11 @@ private struct BoardView: View {
                 }
                 .buttonStyle(.plain)
                 .zIndex(Double(cardIndex))
+                .visualEffect { content, geometry in
+                    let currentY = geometry.frame(in: .scrollView(axis: .vertical)).minY
+                    let stackedY = min(CGFloat(cardIndex) * 10, 50)
+                    return content.offset(y: isLeadColumn ? max(0, stackedY - currentY) : 0)
+                }
                 .opacity(cardOpacity(for: task, isLeadColumn: isLeadColumn))
                 .anchorPreference(key: CardBoundsPreferenceKey.self, value: .bounds) {
                     [task.id: $0]
