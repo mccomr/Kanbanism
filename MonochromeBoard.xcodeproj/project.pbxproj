@@ -7,16 +7,16 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A00000000000000000000011 /* MonochromeBoardApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000001 /* MonochromeBoardApp.swift */; };
+		A00000000000000000000011 /* KanbanettiApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000001 /* KanbanettiApp.swift */; };
 		A00000000000000000000012 /* BoardStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000002 /* BoardStore.swift */; };
 		A00000000000000000000013 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000003 /* ContentView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		A00000000000000000000001 /* MonochromeBoardApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonochromeBoardApp.swift; sourceTree = "<group>"; };
+		A00000000000000000000001 /* KanbanettiApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KanbanettiApp.swift; sourceTree = "<group>"; };
 		A00000000000000000000002 /* BoardStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardStore.swift; sourceTree = "<group>"; };
 		A00000000000000000000003 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		A00000000000000000000004 /* MonochromeBoard.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = MonochromeBoard.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A00000000000000000000004 /* Kanbanetti.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = Kanbanetti.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -41,7 +41,7 @@
 		A00000000000000000000021 /* MonochromeBoard */ = {
 			isa = PBXGroup;
 			children = (
-				A00000000000000000000001 /* MonochromeBoardApp.swift */,
+				A00000000000000000000001 /* KanbanettiApp.swift */,
 				A00000000000000000000002 /* BoardStore.swift */,
 				A00000000000000000000003 /* ContentView.swift */,
 			);
@@ -51,7 +51,7 @@
 		A00000000000000000000022 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				A00000000000000000000004 /* MonochromeBoard.app */,
+				A00000000000000000000004 /* Kanbanetti.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -59,7 +59,7 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		A00000000000000000000040 /* MonochromeBoard */ = {
+		A00000000000000000000040 /* Kanbanetti */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = A00000000000000000000050 /* Build configuration list for PBXNativeTarget "MonochromeBoard" */;
 			buildPhases = (
@@ -71,9 +71,9 @@
 			);
 			dependencies = (
 			);
-			name = MonochromeBoard;
-			productName = MonochromeBoard;
-			productReference = A00000000000000000000004 /* MonochromeBoard.app */;
+			name = Kanbanetti;
+			productName = Kanbanetti;
+			productReference = A00000000000000000000004 /* Kanbanetti.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -103,7 +103,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				A00000000000000000000040 /* MonochromeBoard */,
+				A00000000000000000000040 /* Kanbanetti */,
 			);
 		};
 /* End PBXProject section */
@@ -123,7 +123,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A00000000000000000000011 /* MonochromeBoardApp.swift in Sources */,
+				A00000000000000000000011 /* KanbanettiApp.swift in Sources */,
 				A00000000000000000000012 /* BoardStore.swift in Sources */,
 				A00000000000000000000013 /* ContentView.swift in Sources */,
 			);
@@ -142,6 +142,7 @@
 				DEVELOPMENT_TEAM = MD945KBPQB;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Kanbanetti;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -149,7 +150,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.MonochromeBoard;
-				PRODUCT_NAME = MonochromeBoard;
+				PRODUCT_NAME = Kanbanetti;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -166,6 +167,7 @@
 				DEVELOPMENT_TEAM = MD945KBPQB;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Kanbanetti;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -173,7 +175,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.MonochromeBoard;
-				PRODUCT_NAME = MonochromeBoard;
+				PRODUCT_NAME = Kanbanetti;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -269,7 +271,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A00000000000000000000050 /* Build configuration list for PBXNativeTarget "MonochromeBoard" */ = {
+		A00000000000000000000050 /* Build configuration list for PBXNativeTarget "Kanbanetti" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A00000000000000000000060 /* Debug */,

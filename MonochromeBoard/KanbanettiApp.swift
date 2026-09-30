@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct MonochromeBoardApp: App {
+struct KanbanettiApp: App {
   @StateObject private var store = BoardStore()
 
   var body: some Scene {
