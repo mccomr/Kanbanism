@@ -329,7 +329,7 @@ private struct BoardView: View {
                 }
                 HStack {
                   Image(systemName: "circle.dotted")
-                  Text(isLeadColumn ? "OPPORTUNITY" : "TASK")
+                  Text(isLeadColumn ? task.leadKind.name.uppercased() : "TASK")
                     .tracking(1)
                   if !isLeadColumn,
                     let opportunity = project.opportunity(for: task)
@@ -787,6 +787,7 @@ private struct TaskEditor: View {
   @State private var colorChoice: String
   @State private var columnID: UUID
   @State private var opportunityID: UUID?
+  @State private var leadKind: LeadKind
 
   init(projectID: UUID, task: BoardTask?, initialColumnID: UUID) {
     self.projectID = projectID
@@ -795,6 +796,7 @@ private struct TaskEditor: View {
     _columnID = State(initialValue: initialColumnID)
     _colorChoice = State(initialValue: task?.color?.rawValue ?? "board")
     _opportunityID = State(initialValue: task?.opportunityID)
+    _leadKind = State(initialValue: task?.leadKind ?? .opportunity)
   }
 
   private var project: BoardProject? { store.project(projectID) }
@@ -824,6 +826,14 @@ private struct TaskEditor: View {
           }
         }
         if isOpportunity {
+          Section("Lead type") {
+            Picker("Show on card", selection: $leadKind) {
+              ForEach(LeadKind.allCases) { kind in
+                Text(kind.name).tag(kind)
+              }
+            }
+            .pickerStyle(.segmented)
+          }
           Section("Opportunity color") {
             Picker("Color", selection: $colorChoice) {
               HStack {
@@ -884,13 +894,15 @@ private struct TaskEditor: View {
                 task.id, in: projectID, title: title, details: details,
                 columnID: columnID,
                 color: isOpportunity ? ProjectColor(rawValue: colorChoice) : nil,
-                opportunityID: isOpportunity ? nil : opportunityID)
+                opportunityID: isOpportunity ? nil : opportunityID,
+                leadKind: isOpportunity ? leadKind : task.leadKind)
             } else {
               store.addTask(
                 to: projectID, columnID: columnID, title: title,
                 details: details,
                 color: isOpportunity ? ProjectColor(rawValue: colorChoice) : nil,
-                opportunityID: isOpportunity ? nil : opportunityID)
+                opportunityID: isOpportunity ? nil : opportunityID,
+                leadKind: isOpportunity ? leadKind : .opportunity)
             }
             dismiss()
           }
