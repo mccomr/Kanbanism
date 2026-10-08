@@ -310,10 +310,14 @@ private struct BoardView: View {
         isLeadColumn: project?.columns.first?.id == column.id)
     }
     .sheet(item: $editingTask) { task in
-      TaskEditor(projectID: projectID, task: task, initialColumnID: task.columnID)
+      TaskEditor(
+        projectID: projectID, task: task, initialColumnID: task.columnID,
+        onCancel: { editingTask = nil })
     }
     .sheet(item: $newTaskColumn) { selection in
-      TaskEditor(projectID: projectID, task: nil, initialColumnID: selection.id)
+      TaskEditor(
+        projectID: projectID, task: nil, initialColumnID: selection.id,
+        onCancel: { newTaskColumn = nil })
     }
     .fileExporter(
       isPresented: $showingProjectExporter,
@@ -908,6 +912,7 @@ private struct TaskEditor: View {
   let projectID: UUID
   let task: BoardTask?
   let initialColumnID: UUID
+  let onCancel: () -> Void
   @State private var title = ""
   @State private var details = ""
   @State private var colorChoice: String
@@ -915,10 +920,14 @@ private struct TaskEditor: View {
   @State private var opportunityID: UUID?
   @State private var leadKind: LeadKind
 
-  init(projectID: UUID, task: BoardTask?, initialColumnID: UUID) {
+  init(
+    projectID: UUID, task: BoardTask?, initialColumnID: UUID,
+    onCancel: @escaping () -> Void
+  ) {
     self.projectID = projectID
     self.task = task
     self.initialColumnID = initialColumnID
+    self.onCancel = onCancel
     _columnID = State(initialValue: initialColumnID)
     _colorChoice = State(initialValue: task?.color?.rawValue ?? "board")
     _opportunityID = State(initialValue: task?.opportunityID)
@@ -1012,7 +1021,12 @@ private struct TaskEditor: View {
       .navigationTitle(task == nil ? "New task" : "Edit task")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
-        ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Cancel") {
+            onCancel()
+            dismiss()
+          }
+        }
         ToolbarItem(placement: .confirmationAction) {
           Button("Save") {
             if let task {
