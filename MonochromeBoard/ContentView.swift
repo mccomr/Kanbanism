@@ -56,8 +56,10 @@ extension ProjectColor {
   }
 }
 
-private struct ColumnSelection: Identifiable {
-  let id: UUID
+private struct TaskEditorPresentation: Identifiable {
+  let id = UUID()
+  let task: BoardTask?
+  let columnID: UUID
 }
 
 private struct CardDragState: Equatable {
@@ -222,8 +224,7 @@ private struct BoardView: View {
   @EnvironmentObject private var store: BoardStore
   let projectID: UUID
   @State private var showingNewColumn = false
-  @State private var editingTask: BoardTask?
-  @State private var newTaskColumn: ColumnSelection?
+  @State private var taskEditorPresentation: TaskEditorPresentation?
   @State private var editingColumn: BoardColumn?
   @State private var editingProject = false
   @State private var selectedOpportunityID: UUID?
@@ -309,15 +310,10 @@ private struct BoardView: View {
         projectID: projectID, column: column,
         isLeadColumn: project?.columns.first?.id == column.id)
     }
-    .sheet(item: $editingTask) { task in
+    .sheet(item: $taskEditorPresentation) { presentation in
       TaskEditor(
-        projectID: projectID, task: task, initialColumnID: task.columnID,
-        onCancel: { editingTask = nil })
-    }
-    .sheet(item: $newTaskColumn) { selection in
-      TaskEditor(
-        projectID: projectID, task: nil, initialColumnID: selection.id,
-        onCancel: { newTaskColumn = nil })
+        projectID: projectID, task: presentation.task, initialColumnID: presentation.columnID,
+        onClose: { taskEditorPresentation = nil })
     }
     .fileExporter(
       isPresented: $showingProjectExporter,
@@ -414,7 +410,8 @@ private struct BoardView: View {
                   selectedOpportunityID = selectedOpportunityID == task.id ? nil : task.id
                 }
               } else {
-                editingTask = task
+                taskEditorPresentation = TaskEditorPresentation(
+                  task: task, columnID: task.columnID)
               }
             } label: {
               cardContent(task, isLeadColumn: isLeadColumn, project: project)
@@ -463,7 +460,10 @@ private struct BoardView: View {
             )
             .contextMenu {
               if isLeadColumn {
-                Button("Edit opportunity", systemImage: "pencil") { editingTask = task }
+                Button("Edit opportunity", systemImage: "pencil") {
+                  taskEditorPresentation = TaskEditorPresentation(
+                    task: task, columnID: task.columnID)
+                }
               }
               if let index = tasks.firstIndex(where: { $0.id == task.id }) {
                 if index > 0 {
@@ -508,7 +508,7 @@ private struct BoardView: View {
       }
 
       Button {
-        newTaskColumn = ColumnSelection(id: column.id)
+        taskEditorPresentation = TaskEditorPresentation(task: nil, columnID: column.id)
       } label: {
         Label(isLeadColumn ? "Add opportunity" : "Add task", systemImage: "plus")
           .font(.subheadline.weight(.semibold))
@@ -908,11 +908,10 @@ private struct ProjectEditor: View {
 
 private struct TaskEditor: View {
   @EnvironmentObject private var store: BoardStore
-  @Environment(\.dismiss) private var dismiss
   let projectID: UUID
   let task: BoardTask?
   let initialColumnID: UUID
-  let onCancel: () -> Void
+  let onClose: () -> Void
   @State private var title = ""
   @State private var details = ""
   @State private var colorChoice: String
@@ -922,12 +921,12 @@ private struct TaskEditor: View {
 
   init(
     projectID: UUID, task: BoardTask?, initialColumnID: UUID,
-    onCancel: @escaping () -> Void
+    onClose: @escaping () -> Void
   ) {
     self.projectID = projectID
     self.task = task
     self.initialColumnID = initialColumnID
-    self.onCancel = onCancel
+    self.onClose = onClose
     _columnID = State(initialValue: initialColumnID)
     _colorChoice = State(initialValue: task?.color?.rawValue ?? "board")
     _opportunityID = State(initialValue: task?.opportunityID)
@@ -1013,7 +1012,7 @@ private struct TaskEditor: View {
           Section {
             Button("Delete task", role: .destructive) {
               store.deleteTask(task.id, in: projectID)
-              dismiss()
+              onClose()
             }
           }
         }
@@ -1023,8 +1022,7 @@ private struct TaskEditor: View {
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel") {
-            onCancel()
-            dismiss()
+            onClose()
           }
         }
         ToolbarItem(placement: .confirmationAction) {
@@ -1044,7 +1042,7 @@ private struct TaskEditor: View {
                 opportunityID: isOpportunity ? nil : opportunityID,
                 leadKind: isOpportunity ? leadKind : .opportunity)
             }
-            dismiss()
+            onClose()
           }
           .fontWeight(.semibold)
           .disabled(
