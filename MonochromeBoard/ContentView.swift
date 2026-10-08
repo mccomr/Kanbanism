@@ -1,4 +1,28 @@
 import SwiftUI
+import UniformTypeIdentifiers
+
+private struct KanbanettiProjectDocument: FileDocument {
+  static let readableContentTypes: [UTType] = [.json]
+
+  let project: BoardProject
+
+  init(project: BoardProject) {
+    self.project = project
+  }
+
+  init(configuration: ReadConfiguration) throws {
+    guard let data = configuration.file.regularFileContents else {
+      throw CocoaError(.fileReadCorruptFile)
+    }
+    project = try JSONDecoder().decode(BoardProject.self, from: data)
+  }
+
+  func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+    return FileWrapper(regularFileWithContents: try encoder.encode(project))
+  }
+}
 
 private enum Palette {
   static let ink = Color(red: 0.94, green: 0.94, blue: 0.94)
@@ -64,6 +88,8 @@ private func edgeStackOffset(
 struct ContentView: View {
   @EnvironmentObject private var store: BoardStore
   @State private var showingNewProject = false
+  @State private var showingProjectImporter = false
+  @State private var importErrorMessage: String?
 
   var body: some View {
     NavigationStack {
@@ -138,7 +164,14 @@ struct ContentView: View {
       }
       .background(Palette.paper)
       .toolbar {
-        ToolbarItem(placement: .topBarTrailing) {
+        ToolbarItemGroup(placement: .topBarTrailing) {
+          Button {
+            showingProjectImporter = true
+          } label: {
+            Image(systemName: "square.and.arrow.down")
+          }
+          .accessibilityLabel("Import project")
+
           Button {
             showingNewProject = true
           } label: {
@@ -151,8 +184,37 @@ struct ContentView: View {
       }
       .navigationDestination(for: UUID.self) { BoardView(projectID: $0) }
       .sheet(isPresented: $showingNewProject) { ProjectEditor(project: nil) }
+      .fileImporter(
+        isPresented: $showingProjectImporter,
+        allowedContentTypes: [.json]
+      ) { result in
+        importProject(from: result)
+      }
+      .alert(
+        "Unable to import project",
+        isPresented: Binding(
+          get: { importErrorMessage != nil },
+          set: { if !$0 { importErrorMessage = nil } })
+      ) {
+        Button("OK", role: .cancel) {}
+      } message: {
+        Text(importErrorMessage ?? "The selected file could not be imported.")
+      }
     }
     .tint(Palette.ink)
+  }
+
+  private func importProject(from result: Result<URL, Error>) {
+    do {
+      let url = try result.get()
+      let hasAccess = url.startAccessingSecurityScopedResource()
+      defer { if hasAccess { url.stopAccessingSecurityScopedResource() } }
+      let data = try Data(contentsOf: url)
+      let project = try JSONDecoder().decode(BoardProject.self, from: data)
+      store.importProject(project)
+    } catch {
+      importErrorMessage = error.localizedDescription
+    }
   }
 }
 
@@ -169,6 +231,9 @@ private struct BoardView: View {
   @State private var columnScrollportFrames: [UUID: CGRect] = [:]
   @State private var cardDragState: CardDragState?
   @State private var suppressedCardTapID: UUID?
+  @State private var exportDocument: KanbanettiProjectDocument?
+  @State private var showingProjectExporter = false
+  @State private var exportErrorMessage: String?
 
   private var project: BoardProject? { store.project(projectID) }
 
@@ -222,6 +287,10 @@ private struct BoardView: View {
             Menu {
               Button("Edit project", systemImage: "pencil") { editingProject = true }
               Button("Add column", systemImage: "plus") { showingNewColumn = true }
+              Button("Export project", systemImage: "square.and.arrow.up") {
+                exportDocument = KanbanettiProjectDocument(project: project)
+                showingProjectExporter = true
+              }
             } label: {
               Image(systemName: "ellipsis.circle")
             }
@@ -246,6 +315,31 @@ private struct BoardView: View {
     .sheet(item: $newTaskColumn) { selection in
       TaskEditor(projectID: projectID, task: nil, initialColumnID: selection.id)
     }
+    .fileExporter(
+      isPresented: $showingProjectExporter,
+      document: exportDocument,
+      contentType: .json,
+      defaultFilename: exportFilename
+    ) { result in
+      if case .failure(let error) = result {
+        exportErrorMessage = error.localizedDescription
+      }
+    }
+    .alert(
+      "Unable to export project",
+      isPresented: Binding(
+        get: { exportErrorMessage != nil },
+        set: { if !$0 { exportErrorMessage = nil } })
+    ) {
+      Button("OK", role: .cancel) {}
+    } message: {
+      Text(exportErrorMessage ?? "The project could not be exported.")
+    }
+  }
+
+  private var exportFilename: String {
+    let name = project?.name ?? "Kanbanetti Project"
+    return name.replacingOccurrences(of: "/", with: "-") + ".kanbanetti.json"
   }
 
   private func columnView(_ column: BoardColumn, project: BoardProject, viewportHeight: CGFloat)

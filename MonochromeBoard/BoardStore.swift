@@ -165,6 +165,35 @@ final class BoardStore: ObservableObject {
     save()
   }
 
+  @discardableResult
+  func importProject(_ importedProject: BoardProject) -> UUID {
+    var project = importedProject
+    project.id = UUID()
+
+    let columnIDMap = Dictionary(
+      uniqueKeysWithValues: project.columns.map { ($0.id, UUID()) })
+    let taskIDMap = Dictionary(
+      uniqueKeysWithValues: project.tasks.map { ($0.id, UUID()) })
+
+    for columnIndex in project.columns.indices {
+      project.columns[columnIndex].id = columnIDMap[project.columns[columnIndex].id] ?? UUID()
+    }
+    for taskIndex in project.tasks.indices {
+      let originalTask = project.tasks[taskIndex]
+      project.tasks[taskIndex].id = taskIDMap[originalTask.id] ?? UUID()
+      project.tasks[taskIndex].columnID =
+        columnIDMap[originalTask.columnID] ?? originalTask.columnID
+      project.tasks[taskIndex].opportunityID = originalTask.opportunityID.flatMap { taskIDMap[$0] }
+    }
+
+    if projects.contains(where: { $0.name == project.name }) {
+      project.name += " (Imported)"
+    }
+    projects.append(project)
+    save()
+    return project.id
+  }
+
   func updateProject(_ id: UUID, name: String, color: ProjectColor) {
     guard let index = projects.firstIndex(where: { $0.id == id }) else { return }
     projects[index].name = name.trimmingCharacters(in: .whitespacesAndNewlines)
