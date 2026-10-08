@@ -1041,6 +1041,9 @@ private struct TaskEditor: View {
       .onAppear {
         title = task?.title ?? ""
         details = task?.details ?? ""
+        if task == nil, isOpportunity, let project {
+          colorChoice = project.nextLeadColor().rawValue
+        }
         if !isOpportunity, opportunityID == nil { opportunityID = opportunities.first?.id }
       }
     }

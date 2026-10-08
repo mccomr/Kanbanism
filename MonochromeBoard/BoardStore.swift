@@ -110,6 +110,23 @@ extension BoardProject {
     return tasks.filter { $0.columnID == leadColumnID }
   }
 
+  func nextLeadColor(excluding taskID: UUID? = nil) -> ProjectColor {
+    let leadColors =
+      opportunities
+      .filter { $0.id != taskID }
+      .map { $0.color ?? color }
+    let usedColors = Set(leadColors)
+
+    if let unusedColor = ProjectColor.allCases.first(where: { !usedColors.contains($0) }) {
+      return unusedColor
+    }
+
+    let colorCounts = Dictionary(grouping: leadColors, by: { $0 }).mapValues(\.count)
+    return ProjectColor.allCases.min {
+      colorCounts[$0, default: 0] < colorCounts[$1, default: 0]
+    } ?? color
+  }
+
   func opportunity(for task: BoardTask) -> BoardTask? {
     guard task.columnID != leadColumnID else { return nil }
 
