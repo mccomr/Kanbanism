@@ -780,7 +780,13 @@ private struct BoardView: View {
   }
 
   private func cardEdgePoint(for frame: CGRect, facingRight: Bool) -> CGPoint {
-    CGPoint(x: facingRight ? frame.maxX : frame.minX, y: frame.midY)
+    // The connector has an 8-point terminal with a 2-point outline. Keeping its
+    // centre six points outside the card makes the terminal touch the edge without
+    // drawing over the card's border.
+    let terminalRadius: CGFloat = 6
+    return CGPoint(
+      x: facingRight ? frame.maxX + terminalRadius : frame.minX - terminalRadius,
+      y: frame.midY)
   }
 }
 
