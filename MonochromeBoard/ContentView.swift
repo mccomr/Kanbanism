@@ -735,16 +735,23 @@ private struct BoardView: View {
     for task in project.tasks {
       guard let rawFrame = cardFrames[task.id] else { continue }
       let frame = displayedCardFrame(for: task, in: project, rawFrame: rawFrame)
-      let interior = frame.insetBy(dx: 3, dy: 3)
+      // Keep a fully opaque mask around the rounded edge. Faded cards use the
+      // softer interior mask so connectors can show through without crossing
+      // the card outline.
+      let protectedEdgeWidth: CGFloat = 10
+      let interior = frame.insetBy(dx: protectedEdgeWidth, dy: protectedEdgeWidth)
       let borderPath = RoundedRectangle(cornerRadius: 15).path(in: frame.insetBy(dx: 0.5, dy: 0.5))
       let maskOpacity = connectorMaskOpacity(for: task, in: project)
       context.fill(
-        RoundedRectangle(cornerRadius: 12).path(in: interior),
+        RoundedRectangle(cornerRadius: 5).path(in: interior),
         with: .color(.black.opacity(maskOpacity)))
       context.stroke(
         borderPath,
         with: .color(.black),
-        style: StrokeStyle(lineWidth: 9, lineCap: .round, lineJoin: .round))
+        style: StrokeStyle(
+          lineWidth: protectedEdgeWidth * 2,
+          lineCap: .round,
+          lineJoin: .round))
     }
   }
 
