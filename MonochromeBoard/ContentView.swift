@@ -413,20 +413,34 @@ private struct BoardView: View {
           ForEach(Array(tasks.enumerated()), id: \.element.id) { cardIndex, task in
             let dragTranslation: CGSize =
               cardDragState?.taskID == task.id ? cardDragState?.translation ?? .zero : .zero
-            Button {
-              guard suppressedCardTapID != task.id else { return }
-              if isLeadColumn {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                  selectedOpportunityID = selectedOpportunityID == task.id ? nil : task.id
-                }
-              } else {
+            ZStack(alignment: .bottomTrailing) {
+              cardContent(task, isLeadColumn: isLeadColumn, project: project)
+
+              Button {
                 taskEditorPresentation = TaskEditorPresentation(
                   task: task, columnID: task.columnID)
+              } label: {
+                Image(systemName: "arrow.left.arrow.right")
+                  .font(.system(size: 11, weight: .semibold))
+                  .foregroundStyle(Palette.onPastel.opacity(0.7))
+                  .frame(width: 44, height: 44)
+                  .contentShape(Rectangle())
               }
-            } label: {
-              cardContent(task, isLeadColumn: isLeadColumn, project: project)
+              .buttonStyle(.plain)
+              .accessibilityLabel(isLeadColumn ? "Edit opportunity" : "Edit task")
             }
-            .buttonStyle(.plain)
+            .contentShape(RoundedRectangle(cornerRadius: 15))
+            .onTapGesture {
+              guard suppressedCardTapID != task.id else { return }
+              let opportunityID =
+                isLeadColumn ? task.id : project.opportunity(for: task)?.id
+              if let opportunityID {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                  selectedOpportunityID =
+                    selectedOpportunityID == opportunityID ? nil : opportunityID
+                }
+              }
+            }
             .zIndex(cardDragState?.taskID == task.id ? 10_000 : Double(cardIndex))
             .opacity(
               cardDragState?.taskID == task.id
@@ -576,7 +590,6 @@ private struct BoardView: View {
             .lineLimit(1)
         }
         Spacer()
-        Image(systemName: "arrow.left.arrow.right")
       }
       .font(.system(size: 10, weight: .semibold, design: .monospaced))
       .foregroundStyle(Palette.onPastel.opacity(0.65))
@@ -595,6 +608,12 @@ private struct BoardView: View {
     {
       let frame = displayedCardFrame(for: task, in: project, rawFrame: rawFrame)
       cardContent(task, isLeadColumn: task.columnID == project.leadColumnID, project: project)
+        .overlay(alignment: .bottomTrailing) {
+          Image(systemName: "arrow.left.arrow.right")
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(Palette.onPastel.opacity(0.7))
+            .frame(width: 44, height: 44)
+        }
         .frame(width: frame.width, height: frame.height)
         .position(x: frame.midX, y: frame.midY)
         .allowsHitTesting(false)
