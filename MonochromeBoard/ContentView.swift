@@ -238,6 +238,14 @@ private struct BoardView: View {
 
   private var project: BoardProject? { store.project(projectID) }
 
+  private var isTaskEditorPresented: Binding<Bool> {
+    Binding(
+      get: { taskEditorPresentation != nil },
+      set: { isPresented in
+        if !isPresented { taskEditorPresentation = nil }
+      })
+  }
+
   var body: some View {
     Group {
       if let project {
@@ -310,10 +318,12 @@ private struct BoardView: View {
         projectID: projectID, column: column,
         isLeadColumn: project?.columns.first?.id == column.id)
     }
-    .sheet(item: $taskEditorPresentation) { presentation in
-      TaskEditor(
-        projectID: projectID, task: presentation.task, initialColumnID: presentation.columnID,
-        onClose: { taskEditorPresentation = nil })
+    .sheet(isPresented: isTaskEditorPresented) {
+      if let presentation = taskEditorPresentation {
+        TaskEditor(
+          projectID: projectID, task: presentation.task, initialColumnID: presentation.columnID,
+          isPresented: isTaskEditorPresented)
+      }
     }
     .fileExporter(
       isPresented: $showingProjectExporter,
@@ -908,10 +918,11 @@ private struct ProjectEditor: View {
 
 private struct TaskEditor: View {
   @EnvironmentObject private var store: BoardStore
+  @Environment(\.dismiss) private var dismiss
   let projectID: UUID
   let task: BoardTask?
   let initialColumnID: UUID
-  let onClose: () -> Void
+  @Binding var isPresented: Bool
   @State private var title = ""
   @State private var details = ""
   @State private var colorChoice: String
@@ -921,12 +932,12 @@ private struct TaskEditor: View {
 
   init(
     projectID: UUID, task: BoardTask?, initialColumnID: UUID,
-    onClose: @escaping () -> Void
+    isPresented: Binding<Bool>
   ) {
     self.projectID = projectID
     self.task = task
     self.initialColumnID = initialColumnID
-    self.onClose = onClose
+    _isPresented = isPresented
     _columnID = State(initialValue: initialColumnID)
     _colorChoice = State(initialValue: task?.color?.rawValue ?? "board")
     _opportunityID = State(initialValue: task?.opportunityID)
@@ -938,6 +949,54 @@ private struct TaskEditor: View {
   private var opportunities: [BoardTask] {
     guard let leadColumnID = project?.columns.first?.id else { return [] }
     return project?.tasks.filter { $0.columnID == leadColumnID && $0.id != task?.id } ?? []
+  }
+
+  private func closeEditor() {
+    isPresented = false
+    dismiss()
+  }
+
+  private var saveDisabled: Bool {
+    title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || (!isOpportunity && opportunityID == nil)
+  }
+
+  private func saveEditor() {
+    if let task {
+      store.updateTask(
+        task.id, in: projectID, title: title, details: details,
+        columnID: columnID,
+        color: isOpportunity ? ProjectColor(rawValue: colorChoice) : nil,
+        opportunityID: isOpportunity ? nil : opportunityID,
+        leadKind: isOpportunity ? leadKind : task.leadKind)
+    } else {
+      store.addTask(
+        to: projectID, columnID: columnID, title: title,
+        details: details,
+        color: isOpportunity ? ProjectColor(rawValue: colorChoice) : nil,
+        opportunityID: isOpportunity ? nil : opportunityID,
+        leadKind: isOpportunity ? leadKind : .opportunity)
+    }
+    closeEditor()
+  }
+
+  private var editorActions: some View {
+    HStack {
+      Text("Cancel")
+        .foregroundStyle(Palette.ink)
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
+        .onTapGesture { closeEditor() }
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { closeEditor() }
+      Spacer()
+      Button("Save") { saveEditor() }
+        .fontWeight(.semibold)
+        .disabled(saveDisabled)
+    }
+    .padding(.horizontal, 18)
+    .padding(.vertical, 10)
+    .background(Palette.paper)
   }
 
   var body: some View {
@@ -1012,44 +1071,29 @@ private struct TaskEditor: View {
           Section {
             Button("Delete task", role: .destructive) {
               store.deleteTask(task.id, in: projectID)
-              onClose()
+              closeEditor()
             }
           }
         }
       }
       .navigationTitle(task == nil ? "New task" : "Edit task")
       .navigationBarTitleDisplayMode(.inline)
+#if targetEnvironment(macCatalyst)
+      .safeAreaInset(edge: .top, spacing: 0) {
+        editorActions
+      }
+#else
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
-          Button("Cancel") {
-            onClose()
-          }
+          Button("Cancel", role: .cancel) { closeEditor() }
         }
         ToolbarItem(placement: .confirmationAction) {
-          Button("Save") {
-            if let task {
-              store.updateTask(
-                task.id, in: projectID, title: title, details: details,
-                columnID: columnID,
-                color: isOpportunity ? ProjectColor(rawValue: colorChoice) : nil,
-                opportunityID: isOpportunity ? nil : opportunityID,
-                leadKind: isOpportunity ? leadKind : task.leadKind)
-            } else {
-              store.addTask(
-                to: projectID, columnID: columnID, title: title,
-                details: details,
-                color: isOpportunity ? ProjectColor(rawValue: colorChoice) : nil,
-                opportunityID: isOpportunity ? nil : opportunityID,
-                leadKind: isOpportunity ? leadKind : .opportunity)
-            }
-            onClose()
-          }
+          Button("Save") { saveEditor() }
           .fontWeight(.semibold)
-          .disabled(
-            title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-              || (!isOpportunity && opportunityID == nil))
+          .disabled(saveDisabled)
         }
       }
+#endif
       .onAppear {
         title = task?.title ?? ""
         details = task?.details ?? ""
