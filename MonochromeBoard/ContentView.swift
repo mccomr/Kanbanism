@@ -276,6 +276,12 @@ private struct BoardView: View {
                   context.drawLayer { connectorLayer in
                     drawConnectors(for: project, context: &connectorLayer)
                     maskCardInteriors(for: project, context: &connectorLayer)
+                    if let selectedOpportunityID {
+                      drawConnectors(
+                        for: project,
+                        onlyFor: selectedOpportunityID,
+                        context: &connectorLayer)
+                    }
                   }
                 }
                 .allowsHitTesting(false)
@@ -678,10 +684,15 @@ private struct BoardView: View {
     column.color?.tint.opacity(0.16) ?? Palette.surface
   }
 
-  private func drawConnectors(for project: BoardProject, context: inout GraphicsContext) {
+  private func drawConnectors(
+    for project: BoardProject,
+    onlyFor opportunityFilter: UUID? = nil,
+    context: inout GraphicsContext
+  ) {
     for task in project.tasks {
       guard let opportunity = project.opportunity(for: task) else { continue }
       let opportunityID = opportunity.id
+      guard opportunityFilter == nil || opportunityFilter == opportunityID else { continue }
       guard let opportunityRawFrame = cardFrames[opportunityID],
         let taskRawFrame = cardFrames[task.id]
       else { continue }
@@ -753,6 +764,8 @@ private struct BoardView: View {
           lineCap: .round,
           lineJoin: .round))
     }
+
+    context.blendMode = .normal
   }
 
   private func connectorMaskOpacity(for task: BoardTask, in project: BoardProject) -> Double {
