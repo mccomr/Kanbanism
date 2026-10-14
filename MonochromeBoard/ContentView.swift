@@ -275,13 +275,6 @@ private struct BoardView: View {
                 Canvas { context, _ in
                   context.drawLayer { connectorLayer in
                     drawConnectors(for: project, context: &connectorLayer)
-                    maskCardInteriors(for: project, context: &connectorLayer)
-                    if let selectedOpportunityID {
-                      drawConnectors(
-                        for: project,
-                        onlyFor: selectedOpportunityID,
-                        context: &connectorLayer)
-                    }
                   }
                 }
                 .allowsHitTesting(false)
@@ -684,15 +677,10 @@ private struct BoardView: View {
     column.color?.tint.opacity(0.16) ?? Palette.surface
   }
 
-  private func drawConnectors(
-    for project: BoardProject,
-    onlyFor opportunityFilter: UUID? = nil,
-    context: inout GraphicsContext
-  ) {
+  private func drawConnectors(for project: BoardProject, context: inout GraphicsContext) {
     for task in project.tasks {
       guard let opportunity = project.opportunity(for: task) else { continue }
       let opportunityID = opportunity.id
-      guard opportunityFilter == nil || opportunityFilter == opportunityID else { continue }
       guard let opportunityRawFrame = cardFrames[opportunityID],
         let taskRawFrame = cardFrames[task.id]
       else { continue }
@@ -738,44 +726,6 @@ private struct BoardView: View {
       }
 
     }
-  }
-
-  private func maskCardInteriors(for project: BoardProject, context: inout GraphicsContext) {
-    context.blendMode = .destinationOut
-
-    for task in project.tasks {
-      guard let rawFrame = cardFrames[task.id] else { continue }
-      let frame = displayedCardFrame(for: task, in: project, rawFrame: rawFrame)
-      // Keep a fully opaque mask around the rounded edge. Faded cards use the
-      // softer interior mask so connectors can show through without crossing
-      // the card outline.
-      let protectedEdgeWidth: CGFloat = 10
-      let interior = frame.insetBy(dx: protectedEdgeWidth, dy: protectedEdgeWidth)
-      let borderPath = RoundedRectangle(cornerRadius: 15).path(in: frame.insetBy(dx: 0.5, dy: 0.5))
-      let maskOpacity = connectorMaskOpacity(for: task, in: project)
-      context.fill(
-        RoundedRectangle(cornerRadius: 5).path(in: interior),
-        with: .color(.black.opacity(maskOpacity)))
-      context.stroke(
-        borderPath,
-        with: .color(.black),
-        style: StrokeStyle(
-          lineWidth: protectedEdgeWidth * 2,
-          lineCap: .round,
-          lineJoin: .round))
-    }
-
-    context.blendMode = .normal
-  }
-
-  private func connectorMaskOpacity(for task: BoardTask, in project: BoardProject) -> Double {
-    if let draggedTaskID = cardDragState?.taskID {
-      return task.id == draggedTaskID ? 1 : 0
-    }
-    guard let selectedOpportunityID else { return 1 }
-    let isOpportunity = task.columnID == project.leadColumnID
-    let relatedOpportunityID = isOpportunity ? task.id : project.opportunity(for: task)?.id
-    return relatedOpportunityID == selectedOpportunityID ? 1 : 0.25
   }
 
   private func displayedCardFrame(
