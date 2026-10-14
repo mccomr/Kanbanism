@@ -275,6 +275,7 @@ private struct BoardView: View {
                 Canvas { context, _ in
                   context.drawLayer { connectorLayer in
                     drawConnectors(for: project, context: &connectorLayer)
+                    maskCardSurfaces(for: project, context: &connectorLayer)
                   }
                 }
                 .allowsHitTesting(false)
@@ -725,6 +726,19 @@ private struct BoardView: View {
           with: .color((opportunity.color ?? project.color).tint.opacity(connectorOpacity)))
       }
 
+    }
+  }
+
+  private func maskCardSurfaces(for project: BoardProject, context: inout GraphicsContext) {
+    context.blendMode = .destinationOut
+
+    for task in project.tasks {
+      guard let rawFrame = cardFrames[task.id] else { continue }
+      let frame = displayedCardFrame(for: task, in: project, rawFrame: rawFrame)
+        .insetBy(dx: -1, dy: -1)
+      context.fill(
+        RoundedRectangle(cornerRadius: 16).path(in: frame),
+        with: .color(.black))
     }
   }
 
