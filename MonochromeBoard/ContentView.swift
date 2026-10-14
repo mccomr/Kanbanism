@@ -730,9 +730,6 @@ private struct BoardView: View {
           x: point.x - endpointSize / 2, y: point.y - endpointSize / 2,
           width: endpointSize, height: endpointSize)
         context.fill(
-          Path(ellipseIn: dot.insetBy(dx: -2, dy: -2)),
-          with: .color(Palette.paper.opacity(0.95)))
-        context.fill(
           Path(ellipseIn: dot),
           with: .color((opportunity.color ?? project.color).tint.opacity(connectorOpacity)))
       }
