@@ -233,7 +233,11 @@ private struct BoardView: View {
   @State private var cardDragState: CardDragState?
   @State private var suppressedCardTapID: UUID?
   @State private var exportDocument: KanbanettiProjectDocument?
+  @State private var pdfDocument: KanbanettiPDFDocument?
+  @State private var csvDocument: KanbanettiCSVDocument?
   @State private var showingProjectExporter = false
+  @State private var showingPDFExporter = false
+  @State private var showingCSVExporter = false
   @State private var exportErrorMessage: String?
 
   private var project: BoardProject? { store.project(projectID) }
@@ -302,9 +306,17 @@ private struct BoardView: View {
             Menu {
               Button("Edit project", systemImage: "pencil") { editingProject = true }
               Button("Add column", systemImage: "plus") { showingNewColumn = true }
-              Button("Export project", systemImage: "square.and.arrow.up") {
+              Button("Export project file", systemImage: "archivebox") {
                 exportDocument = KanbanettiProjectDocument(project: project)
                 showingProjectExporter = true
+              }
+              Button("Export PDF report", systemImage: "doc.richtext") {
+                pdfDocument = KanbanettiPDFDocument(project: project)
+                showingPDFExporter = true
+              }
+              Button("Export CSV file", systemImage: "tablecells") {
+                csvDocument = KanbanettiCSVDocument(project: project)
+                showingCSVExporter = true
               }
             } label: {
               Image(systemName: "ellipsis.circle")
@@ -337,9 +349,23 @@ private struct BoardView: View {
       contentType: .json,
       defaultFilename: exportFilename
     ) { result in
-      if case .failure(let error) = result {
-        exportErrorMessage = error.localizedDescription
-      }
+      handleExportResult(result)
+    }
+    .fileExporter(
+      isPresented: $showingPDFExporter,
+      document: pdfDocument,
+      contentType: .pdf,
+      defaultFilename: pdfFilename
+    ) { result in
+      handleExportResult(result)
+    }
+    .fileExporter(
+      isPresented: $showingCSVExporter,
+      document: csvDocument,
+      contentType: .commaSeparatedText,
+      defaultFilename: csvFilename
+    ) { result in
+      handleExportResult(result)
     }
     .alert(
       "Unable to export project",
@@ -354,8 +380,26 @@ private struct BoardView: View {
   }
 
   private var exportFilename: String {
+    exportBaseName + ".kanbanetti.json"
+  }
+
+  private var pdfFilename: String {
+    exportBaseName + " Report.pdf"
+  }
+
+  private var csvFilename: String {
+    exportBaseName + ".csv"
+  }
+
+  private var exportBaseName: String {
     let name = project?.name ?? "Kanbanetti Project"
-    return name.replacingOccurrences(of: "/", with: "-") + ".kanbanetti.json"
+    return name.replacingOccurrences(of: "/", with: "-")
+  }
+
+  private func handleExportResult(_ result: Result<URL, Error>) {
+    if case .failure(let error) = result {
+      exportErrorMessage = error.localizedDescription
+    }
   }
 
   private func columnView(_ column: BoardColumn, project: BoardProject, viewportHeight: CGFloat)
