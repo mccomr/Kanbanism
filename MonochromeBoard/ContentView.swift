@@ -238,7 +238,9 @@ private struct BoardView: View {
   @State private var showingProjectExporter = false
   @State private var showingPDFExporter = false
   @State private var showingCSVExporter = false
+  @State private var showingProjectImporter = false
   @State private var exportErrorMessage: String?
+  @State private var importErrorMessage: String?
 
   private var project: BoardProject? { store.project(projectID) }
 
@@ -306,6 +308,9 @@ private struct BoardView: View {
             Menu {
               Button("Edit project", systemImage: "pencil") { editingProject = true }
               Button("Add column", systemImage: "plus") { showingNewColumn = true }
+              Button("Import project", systemImage: "square.and.arrow.down") {
+                showingProjectImporter = true
+              }
               Button("Export project file", systemImage: "archivebox") {
                 exportDocument = KanbanettiProjectDocument(project: project)
                 showingProjectExporter = true
@@ -343,6 +348,12 @@ private struct BoardView: View {
           isPresented: isTaskEditorPresented)
       }
     }
+    .fileImporter(
+      isPresented: $showingProjectImporter,
+      allowedContentTypes: [.json]
+    ) { result in
+      importProject(from: result)
+    }
     .fileExporter(
       isPresented: $showingProjectExporter,
       document: exportDocument,
@@ -377,6 +388,16 @@ private struct BoardView: View {
     } message: {
       Text(exportErrorMessage ?? "The project could not be exported.")
     }
+    .alert(
+      "Unable to import project",
+      isPresented: Binding(
+        get: { importErrorMessage != nil },
+        set: { if !$0 { importErrorMessage = nil } })
+    ) {
+      Button("OK", role: .cancel) {}
+    } message: {
+      Text(importErrorMessage ?? "The selected file could not be imported.")
+    }
   }
 
   private var exportFilename: String {
@@ -399,6 +420,19 @@ private struct BoardView: View {
   private func handleExportResult(_ result: Result<URL, Error>) {
     if case .failure(let error) = result {
       exportErrorMessage = error.localizedDescription
+    }
+  }
+
+  private func importProject(from result: Result<URL, Error>) {
+    do {
+      let url = try result.get()
+      let hasAccess = url.startAccessingSecurityScopedResource()
+      defer { if hasAccess { url.stopAccessingSecurityScopedResource() } }
+      let data = try Data(contentsOf: url)
+      let importedProject = try JSONDecoder().decode(BoardProject.self, from: data)
+      store.importProject(importedProject)
+    } catch {
+      importErrorMessage = error.localizedDescription
     }
   }
 
