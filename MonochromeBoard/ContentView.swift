@@ -443,6 +443,31 @@ private struct BoardView: View {
     let isLeadColumn = project.columns.first?.id == column.id
     let scrollportFrame = columnScrollportFrames[column.id]
     return VStack(alignment: .leading, spacing: 15) {
+      if column.isCollapsed {
+        Button {
+          withAnimation(.snappy) {
+            store.toggleColumnCollapse(column.id, in: projectID)
+          }
+        } label: {
+          VStack(spacing: 14) {
+            Image(systemName: "chevron.right.2")
+              .font(.caption.weight(.bold))
+            Text("\(tasks.count)")
+              .font(.caption.weight(.bold))
+              .foregroundStyle(Palette.muted)
+            Text(column.name.uppercased())
+              .font(.system(size: 10, weight: .bold, design: .monospaced))
+              .tracking(0.7)
+              .multilineTextAlignment(.center)
+              .lineLimit(4)
+          }
+          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+          .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Palette.ink)
+        .accessibilityLabel("Expand \(column.name) column")
+      } else {
       HStack {
         Image(systemName: "line.3.horizontal")
           .font(.caption)
@@ -465,6 +490,11 @@ private struct BoardView: View {
           ) {
             withAnimation(.snappy) {
               store.toggleTaskStacking(in: column.id, projectID: projectID)
+            }
+          }
+          Button("Collapse column", systemImage: "chevron.left.2") {
+            withAnimation(.snappy) {
+              store.toggleColumnCollapse(column.id, in: projectID)
             }
           }
           if let index = project.columns.firstIndex(where: { $0.id == column.id }), !isLeadColumn {
@@ -626,9 +656,10 @@ private struct BoardView: View {
       }
       .foregroundStyle(Palette.muted)
       Spacer(minLength: 0)
+      }
     }
-    .padding(15)
-    .frame(width: 292, alignment: .topLeading)
+    .padding(column.isCollapsed ? 10 : 15)
+    .frame(width: column.isCollapsed ? 76 : 292, alignment: .topLeading)
     .frame(minHeight: 300, alignment: .top)
     .background(columnBackground(column), in: RoundedRectangle(cornerRadius: 21))
     .overlay {
@@ -636,6 +667,7 @@ private struct BoardView: View {
         .stroke(Color.white.opacity(0.72), lineWidth: 1)
     }
     .zIndex(tasks.contains(where: { $0.id == cardDragState?.taskID }) ? 1_000 : 0)
+    .animation(.snappy, value: column.isCollapsed)
     .dropDestination(for: String.self) { items, _ in
       guard let first = items.first, let id = UUID(uuidString: first) else { return false }
       if project.tasks.contains(where: { $0.id == id }) {
@@ -769,6 +801,10 @@ private struct BoardView: View {
   ) {
     for task in project.tasks {
       guard let opportunity = project.opportunity(for: task) else { continue }
+      guard
+        project.columns.first(where: { $0.id == opportunity.columnID })?.isCollapsed != true,
+        project.columns.first(where: { $0.id == task.columnID })?.isCollapsed != true
+      else { continue }
       let opportunityID = opportunity.id
       guard opportunityFilter == nil || opportunityFilter == opportunityID else { continue }
       guard let opportunityRawFrame = cardFrames[opportunityID],
@@ -819,6 +855,9 @@ private struct BoardView: View {
     context.blendMode = .destinationOut
 
     for task in project.tasks {
+      guard project.columns.first(where: { $0.id == task.columnID })?.isCollapsed != true else {
+        continue
+      }
       guard let rawFrame = cardFrames[task.id] else { continue }
       let frame = displayedCardFrame(for: task, in: project, rawFrame: rawFrame)
         .insetBy(dx: -1, dy: -1)

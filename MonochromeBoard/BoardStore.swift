@@ -58,8 +58,10 @@ struct BoardColumn: Identifiable, Codable, Equatable {
   var name: String
   var color: ProjectColor? = nil
   var stacksTasks: Bool? = nil
+  var collapsed: Bool? = nil
 
   var isStacked: Bool { stacksTasks == true }
+  var isCollapsed: Bool { collapsed == true }
 }
 
 enum ProjectColor: String, CaseIterable, Codable, Identifiable {
@@ -244,6 +246,16 @@ final class BoardStore: ObservableObject {
     projects[projectIndex].columns[columnIndex].stacksTasks = !projects[projectIndex].columns[
       columnIndex
     ].isStacked
+    save()
+  }
+
+  func toggleColumnCollapse(_ columnID: UUID, in projectID: UUID) {
+    guard let projectIndex = projects.firstIndex(where: { $0.id == projectID }),
+      let columnIndex = projects[projectIndex].columns.firstIndex(where: { $0.id == columnID })
+    else { return }
+    projects[projectIndex].columns[columnIndex].collapsed = !projects[projectIndex].columns[
+      columnIndex
+    ].isCollapsed
     save()
   }
 
