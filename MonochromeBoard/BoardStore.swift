@@ -58,8 +58,10 @@ struct BoardColumn: Identifiable, Codable, Equatable {
   var name: String
   var color: ProjectColor? = nil
   var stacksTasks: Bool? = nil
+  var usesCompactWidth: Bool? = nil
 
   var isStacked: Bool { stacksTasks == true }
+  var isCompact: Bool { usesCompactWidth == true }
 }
 
 enum ProjectColor: String, CaseIterable, Codable, Identifiable {
@@ -99,6 +101,108 @@ struct BoardProject: Identifiable, Codable, Equatable {
       columns[firstIndex].name = "Opportunity Leads"
     }
     tasks = try values.decode([BoardTask].self, forKey: .tasks)
+  }
+}
+
+extension BoardProject {
+  static var starterProjects: [BoardProject] {
+    [enterpriseSalesPipeline, strategicPartnerships]
+  }
+
+  private static var enterpriseSalesPipeline: BoardProject {
+    let leads = BoardColumn(name: "Opportunity Leads", color: .sky)
+    let qualified = BoardColumn(name: "Qualified", color: .aqua)
+    let proposal = BoardColumn(name: "Proposal", color: .butter)
+    let negotiation = BoardColumn(name: "Negotiation", color: .peach)
+    let won = BoardColumn(name: "Won", color: .mint)
+
+    let northstar = BoardTask(
+      title: "Northstar Retail", details: "National inventory visibility platform",
+      color: .coral, leadKind: .opportunity, columnID: leads.id)
+    let apex = BoardTask(
+      title: "Apex Logistics", details: "Fleet operations and analytics rollout",
+      color: .cobalt, leadKind: .opportunity, columnID: leads.id)
+    let greenline = BoardTask(
+      title: "Greenline Health", details: "Patient services workflow modernisation",
+      color: .lime, leadKind: .opportunity, columnID: leads.id)
+
+    var project = BoardProject(name: "Enterprise Sales Pipeline", color: .sky)
+    project.columns = [leads, qualified, proposal, negotiation, won]
+    project.tasks = [
+      northstar,
+      apex,
+      greenline,
+      BoardTask(
+        title: "Confirm executive sponsor", details: "Book a 30-minute discovery call",
+        color: northstar.color, opportunityID: northstar.id, columnID: qualified.id),
+      BoardTask(
+        title: "Map store integration requirements", details: "Document POS and ERP interfaces",
+        color: northstar.color, opportunityID: northstar.id, columnID: proposal.id),
+      BoardTask(
+        title: "Prepare value assessment", details: "Model savings from reduced stock-outs",
+        color: northstar.color, opportunityID: northstar.id, columnID: negotiation.id),
+      BoardTask(
+        title: "Complete fleet discovery", details: "Review depots, vehicles and reporting needs",
+        color: apex.color, opportunityID: apex.id, columnID: qualified.id),
+      BoardTask(
+        title: "Send solution proposal", details: "Include rollout plan and support options",
+        color: apex.color, opportunityID: apex.id, columnID: proposal.id),
+      BoardTask(
+        title: "Run security workshop", details: "Cover privacy, access and audit requirements",
+        color: greenline.color, opportunityID: greenline.id, columnID: qualified.id),
+      BoardTask(
+        title: "Agree pilot scope", details: "Select the first two clinic locations",
+        color: greenline.color, opportunityID: greenline.id, columnID: proposal.id),
+    ]
+    return project
+  }
+
+  private static var strategicPartnerships: BoardProject {
+    let leads = BoardColumn(name: "Opportunity Leads", color: .lilac)
+    let discovery = BoardColumn(name: "Discovery", color: .sky)
+    let diligence = BoardColumn(name: "Due Diligence", color: .butter)
+    let agreement = BoardColumn(name: "Agreement", color: .peach)
+    let launched = BoardColumn(name: "Launched", color: .mint)
+
+    let brightPath = BoardTask(
+      title: "BrightPath Consulting", details: "Regional referral and delivery partnership",
+      color: .violet, leadKind: .partner, columnID: leads.id)
+    let cloudBridge = BoardTask(
+      title: "CloudBridge Systems", details: "Technology integration and co-marketing partner",
+      color: .aqua, leadKind: .partner, columnID: leads.id)
+    let signalWorks = BoardTask(
+      title: "SignalWorks CRM", details: "CRM supplier for lead and customer synchronisation",
+      color: .tangerine, leadKind: .vendor, columnID: leads.id)
+
+    var project = BoardProject(name: "Strategic Partnerships", color: .lilac)
+    project.columns = [leads, discovery, diligence, agreement, launched]
+    project.tasks = [
+      brightPath,
+      cloudBridge,
+      signalWorks,
+      BoardTask(
+        title: "Define ideal customer profile", details: "Agree target industries and account size",
+        color: brightPath.color, opportunityID: brightPath.id, columnID: discovery.id),
+      BoardTask(
+        title: "Review delivery capability", details: "Validate coverage, skills and references",
+        color: brightPath.color, opportunityID: brightPath.id, columnID: diligence.id),
+      BoardTask(
+        title: "Draft referral terms", details: "Set lead registration and revenue share rules",
+        color: brightPath.color, opportunityID: brightPath.id, columnID: agreement.id),
+      BoardTask(
+        title: "Design integration workshop", details: "Map product and API touchpoints",
+        color: cloudBridge.color, opportunityID: cloudBridge.id, columnID: discovery.id),
+      BoardTask(
+        title: "Build joint launch plan", details: "Coordinate announcement, webinar and case study",
+        color: cloudBridge.color, opportunityID: cloudBridge.id, columnID: agreement.id),
+      BoardTask(
+        title: "Complete security review", details: "Assess data handling and service controls",
+        color: signalWorks.color, opportunityID: signalWorks.id, columnID: diligence.id),
+      BoardTask(
+        title: "Approve supplier agreement", details: "Finalise support levels and renewal terms",
+        color: signalWorks.color, opportunityID: signalWorks.id, columnID: launched.id),
+    ]
+    return project
   }
 }
 
@@ -150,6 +254,7 @@ extension BoardProject {
 final class BoardStore: ObservableObject {
   @Published private(set) var projects: [BoardProject] = []
 
+  private static let starterProjectsInstalledKey = "starterProjectsInstalled.v1"
   private let fileURL: URL
 
   init() {
@@ -158,11 +263,18 @@ final class BoardStore: ObservableObject {
       ?? FileManager.default.temporaryDirectory
     try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     fileURL = directory.appendingPathComponent("boards.json")
-    if let data = try? Data(contentsOf: fileURL),
-      let saved = try? JSONDecoder().decode([BoardProject].self, from: data)
-    {
-      projects = saved
-      repairOpportunityLinks()
+    if FileManager.default.fileExists(atPath: fileURL.path) {
+      if let data = try? Data(contentsOf: fileURL),
+        let saved = try? JSONDecoder().decode([BoardProject].self, from: data)
+      {
+        projects = saved
+        repairOpportunityLinks()
+        installStarterProjectsIfNeeded()
+      }
+    } else {
+      projects = BoardProject.starterProjects
+      save()
+      UserDefaults.standard.set(true, forKey: Self.starterProjectsInstalledKey)
     }
   }
 
@@ -244,6 +356,16 @@ final class BoardStore: ObservableObject {
     projects[projectIndex].columns[columnIndex].stacksTasks = !projects[projectIndex].columns[
       columnIndex
     ].isStacked
+    save()
+  }
+
+  func toggleColumnWidth(_ columnID: UUID, in projectID: UUID) {
+    guard
+      let projectIndex = projects.firstIndex(where: { $0.id == projectID }),
+      let columnIndex = projects[projectIndex].columns.firstIndex(where: { $0.id == columnID })
+    else { return }
+    projects[projectIndex].columns[columnIndex].usesCompactWidth =
+      !projects[projectIndex].columns[columnIndex].isCompact
     save()
   }
 
@@ -382,6 +504,20 @@ final class BoardStore: ObservableObject {
   private func save() {
     guard let data = try? JSONEncoder().encode(projects) else { return }
     try? data.write(to: fileURL, options: .atomic)
+  }
+
+  private func installStarterProjectsIfNeeded() {
+    guard !UserDefaults.standard.bool(forKey: Self.starterProjectsInstalledKey) else { return }
+
+    let existingNames = Set(projects.map { $0.name.localizedLowercase })
+    let missingProjects = BoardProject.starterProjects.filter {
+      !existingNames.contains($0.name.localizedLowercase)
+    }
+    if !missingProjects.isEmpty {
+      projects.append(contentsOf: missingProjects)
+      save()
+    }
+    UserDefaults.standard.set(true, forKey: Self.starterProjectsInstalledKey)
   }
 
   private func repairOpportunityLinks() {

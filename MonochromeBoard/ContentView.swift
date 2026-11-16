@@ -442,6 +442,7 @@ private struct BoardView: View {
     let tasks = project.tasks.filter { $0.columnID == column.id }
     let isLeadColumn = project.columns.first?.id == column.id
     let scrollportFrame = columnScrollportFrames[column.id]
+    let columnWidth: CGFloat = column.isCompact ? 146 : 292
     return VStack(alignment: .leading, spacing: 15) {
       HStack {
         Image(systemName: "line.3.horizontal")
@@ -451,11 +452,21 @@ private struct BoardView: View {
         Text(column.name.uppercased())
           .font(.system(size: 12, weight: .bold, design: .monospaced))
           .tracking(1.2)
+          .lineLimit(column.isCompact ? 2 : 1)
+          .minimumScaleFactor(0.75)
         Text("\(tasks.count)")
           .font(.caption.weight(.bold))
           .foregroundStyle(Palette.muted)
         Spacer()
         Menu {
+          Button(
+            column.isCompact ? "Full width" : "Half width",
+            systemImage: column.isCompact ? "arrow.left.and.right" : "arrow.right.and.line.vertical.and.arrow.left"
+          ) {
+            withAnimation(.snappy) {
+              store.toggleColumnWidth(column.id, in: projectID)
+            }
+          }
           Button(isLeadColumn ? "Change background" : "Edit column", systemImage: "paintpalette") {
             editingColumn = column
           }
@@ -498,7 +509,9 @@ private struct BoardView: View {
             let dragTranslation: CGSize =
               cardDragState?.taskID == task.id ? cardDragState?.translation ?? .zero : .zero
             ZStack(alignment: .bottomTrailing) {
-              cardContent(task, isLeadColumn: isLeadColumn, project: project)
+              cardContent(
+                task, isLeadColumn: isLeadColumn, project: project,
+                isCompact: column.isCompact)
 
               Button {
                 taskEditorPresentation = TaskEditorPresentation(
@@ -618,7 +631,9 @@ private struct BoardView: View {
       Button {
         taskEditorPresentation = TaskEditorPresentation(task: nil, columnID: column.id)
       } label: {
-        Label(isLeadColumn ? "Add opportunity" : "Add task", systemImage: "plus")
+        Label(
+          column.isCompact ? "Add" : (isLeadColumn ? "Add opportunity" : "Add task"),
+          systemImage: "plus")
           .font(.subheadline.weight(.semibold))
           .frame(maxWidth: .infinity, alignment: .leading)
           .padding(14)
@@ -628,7 +643,7 @@ private struct BoardView: View {
       Spacer(minLength: 0)
     }
     .padding(15)
-    .frame(width: 292, alignment: .topLeading)
+    .frame(width: columnWidth, alignment: .topLeading)
     .frame(minHeight: 300, alignment: .top)
     .background(columnBackground(column), in: RoundedRectangle(cornerRadius: 21))
     .overlay {
@@ -650,26 +665,27 @@ private struct BoardView: View {
     }
   }
 
-  private func cardContent(_ task: BoardTask, isLeadColumn: Bool, project: BoardProject)
+  private func cardContent(
+    _ task: BoardTask, isLeadColumn: Bool, project: BoardProject, isCompact: Bool = false)
     -> some View
   {
-    VStack(alignment: .leading, spacing: 12) {
+    VStack(alignment: .leading, spacing: isCompact ? 8 : 12) {
       Text(task.title)
-        .font(.system(size: 16, weight: .semibold))
+        .font(.system(size: isCompact ? 14 : 16, weight: .semibold))
         .foregroundStyle(Palette.onPastel)
         .multilineTextAlignment(.leading)
       if !task.details.isEmpty {
         Text(task.details)
-          .font(.subheadline)
+          .font(isCompact ? .caption : .subheadline)
           .foregroundStyle(Palette.onPastel.opacity(0.65))
-          .lineLimit(3)
+          .lineLimit(isCompact ? 2 : 3)
           .multilineTextAlignment(.leading)
       }
       HStack {
         Image(systemName: "circle.dotted")
         Text(isLeadColumn ? task.leadKind.name.uppercased() : "TASK")
           .tracking(1)
-        if !isLeadColumn, let opportunity = project.opportunity(for: task) {
+        if !isCompact, !isLeadColumn, let opportunity = project.opportunity(for: task) {
           Text("·  \(opportunity.title.uppercased())")
             .lineLimit(1)
         }
