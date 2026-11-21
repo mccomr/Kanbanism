@@ -17,17 +17,19 @@ struct BoardTask: Identifiable, Codable, Equatable {
   var color: ProjectColor? = nil
   var opportunityID: UUID? = nil
   var leadKind: LeadKind = .opportunity
+  var isUrgent: Bool = false
   var columnID: UUID
   var createdAt: Date = Date()
 
   private enum CodingKeys: String, CodingKey {
-    case id, title, details, color, opportunityID, leadKind, columnID, createdAt
+    case id, title, details, color, opportunityID, leadKind, isUrgent, columnID, createdAt
   }
 
   init(
     id: UUID = UUID(), title: String, details: String = "", color: ProjectColor? = nil,
     opportunityID: UUID? = nil,
     leadKind: LeadKind = .opportunity,
+    isUrgent: Bool = false,
     columnID: UUID, createdAt: Date = Date()
   ) {
     self.id = id
@@ -36,6 +38,7 @@ struct BoardTask: Identifiable, Codable, Equatable {
     self.color = color
     self.opportunityID = opportunityID
     self.leadKind = leadKind
+    self.isUrgent = isUrgent
     self.columnID = columnID
     self.createdAt = createdAt
   }
@@ -48,6 +51,7 @@ struct BoardTask: Identifiable, Codable, Equatable {
     color = try values.decodeIfPresent(ProjectColor.self, forKey: .color)
     opportunityID = try values.decodeIfPresent(UUID.self, forKey: .opportunityID)
     leadKind = try values.decodeIfPresent(LeadKind.self, forKey: .leadKind) ?? .opportunity
+    isUrgent = try values.decodeIfPresent(Bool.self, forKey: .isUrgent) ?? false
     columnID = try values.decode(UUID.self, forKey: .columnID)
     createdAt = try values.decode(Date.self, forKey: .createdAt)
   }
@@ -398,7 +402,7 @@ final class BoardStore: ObservableObject {
 
   func addTask(
     to projectID: UUID, columnID: UUID, title: String, details: String,
-    color: ProjectColor?, opportunityID: UUID?, leadKind: LeadKind
+    color: ProjectColor?, opportunityID: UUID?, leadKind: LeadKind, isUrgent: Bool
   ) {
     guard let index = projects.firstIndex(where: { $0.id == projectID }),
       projects[index].columns.contains(where: { $0.id == columnID })
@@ -410,13 +414,15 @@ final class BoardStore: ObservableObject {
         color: color,
         opportunityID: opportunityID,
         leadKind: leadKind,
+        isUrgent: isUrgent,
         columnID: columnID))
     save()
   }
 
   func updateTask(
     _ taskID: UUID, in projectID: UUID, title: String, details: String,
-    columnID: UUID, color: ProjectColor?, opportunityID: UUID?, leadKind: LeadKind
+    columnID: UUID, color: ProjectColor?, opportunityID: UUID?, leadKind: LeadKind,
+    isUrgent: Bool
   ) {
     guard let projectIndex = projects.firstIndex(where: { $0.id == projectID }),
       let taskIndex = projects[projectIndex].tasks.firstIndex(where: { $0.id == taskID }),
@@ -430,6 +436,7 @@ final class BoardStore: ObservableObject {
     projects[projectIndex].tasks[taskIndex].color = color
     projects[projectIndex].tasks[taskIndex].opportunityID = opportunityID
     projects[projectIndex].tasks[taskIndex].leadKind = leadKind
+    projects[projectIndex].tasks[taskIndex].isUrgent = isUrgent
     save()
   }
 

@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import UIKit
 
 private struct KanbanettiProjectDocument: FileDocument {
   static let readableContentTypes: [UTType] = [.json]
@@ -220,6 +221,25 @@ struct ContentView: View {
   }
 }
 
+private struct CardBorder: View {
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  let isUrgent: Bool
+
+  var body: some View {
+    TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !isUrgent || reduceMotion)) { timeline in
+      let phase = timeline.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 3)
+      let whiteAmount = reduceMotion ? 1 : (1 + cos(phase * 2 * .pi / 3)) / 2
+      let urgentColor = Color(.sRGB, red: 1, green: whiteAmount, blue: whiteAmount, opacity: 1)
+
+      RoundedRectangle(cornerRadius: 15)
+        .strokeBorder(isUrgent ? urgentColor : Palette.line, lineWidth: isUrgent ? 5 : 1)
+        .shadow(color: isUrgent ? urgentColor.opacity(0.85) : .clear, radius: 6)
+    }
+    .allowsHitTesting(false)
+    .accessibilityHidden(true)
+  }
+}
+
 private struct BoardView: View {
   @EnvironmentObject private var store: BoardStore
   let projectID: UUID
@@ -243,6 +263,29 @@ private struct BoardView: View {
   @State private var importErrorMessage: String?
 
   private var project: BoardProject? { store.project(projectID) }
+
+#if targetEnvironment(macCatalyst)
+  @State private var windowResizeError: String?
+
+  private func fitWindowToColumns(_ project: BoardProject) {
+    guard let scene = UIApplication.shared.connectedScenes
+      .compactMap({ $0 as? UIWindowScene })
+      .first(where: { $0.windows.contains(where: \.isKeyWindow) })
+    else { return }
+
+    var frame = scene.effectiveGeometry.systemFrame
+    let boardWidth = project.columns.reduce(CGFloat.zero) {
+      $0 + ($1.isCompact ? 146 : 292)
+    } + CGFloat(max(0, project.columns.count - 1)) * 14 + 36
+    let contentWidth = scene.coordinateSpace.bounds.width
+    guard contentWidth > 0 else { return }
+    let systemScale = frame.width / contentWidth
+    frame.size.width = max(frame.width, boardWidth * systemScale)
+    scene.requestGeometryUpdate(.Mac(systemFrame: frame)) { error in
+      windowResizeError = error.localizedDescription
+    }
+  }
+#endif
 
   private var isTaskEditorPresented: Binding<Bool> {
     Binding(
@@ -304,6 +347,20 @@ private struct BoardView: View {
         .navigationTitle(project.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+#if targetEnvironment(macCatalyst)
+          ToolbarItem(placement: .topBarTrailing) {
+            Button("Fit all columns", systemImage: "arrow.up.left.and.arrow.down.right") {
+              fitWindowToColumns(project)
+            }
+            .help("Expand the window to show all columns")
+          }
+#endif
+          ToolbarItem(placement: .topBarTrailing) {
+            Button("Export config", systemImage: "square.and.arrow.up") {
+              exportDocument = KanbanettiProjectDocument(project: project)
+              showingProjectExporter = true
+            }
+          }
           ToolbarItem(placement: .topBarTrailing) {
             Menu {
               Button("Edit project", systemImage: "pencil") { editingProject = true }
@@ -311,7 +368,7 @@ private struct BoardView: View {
               Button("Import project", systemImage: "square.and.arrow.down") {
                 showingProjectImporter = true
               }
-              Button("Export project file", systemImage: "archivebox") {
+              Button("Export config", systemImage: "archivebox") {
                 exportDocument = KanbanettiProjectDocument(project: project)
                 showingProjectExporter = true
               }
@@ -333,6 +390,16 @@ private struct BoardView: View {
     .sheet(isPresented: $showingNewColumn) {
       ColumnEditor(projectID: projectID, column: nil, isLeadColumn: false)
     }
+#if targetEnvironment(macCatalyst)
+    .alert("Unable to expand window", isPresented: Binding(
+      get: { windowResizeError != nil },
+      set: { if !$0 { windowResizeError = nil } })
+    ) {
+      Button("OK", role: .cancel) {}
+    } message: {
+      Text(windowResizeError ?? "The window could not be resized.")
+    }
+#endif
     .sheet(isPresented: $editingProject) {
       if let project { ProjectEditor(project: project) }
     }
@@ -697,7 +764,9 @@ private struct BoardView: View {
     .padding(16)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(taskColor(task, in: project).tint, in: RoundedRectangle(cornerRadius: 15))
-    .overlay(RoundedRectangle(cornerRadius: 15).stroke(Palette.line))
+    .overlay {
+      CardBorder(isUrgent: task.isUrgent)
+    }
   }
 
   @ViewBuilder
@@ -1036,6 +1105,7 @@ private struct TaskEditor: View {
   @State private var columnID: UUID
   @State private var opportunityID: UUID?
   @State private var leadKind: LeadKind
+  @State private var isUrgent: Bool
 
   init(
     projectID: UUID, task: BoardTask?, initialColumnID: UUID,
@@ -1049,6 +1119,7 @@ private struct TaskEditor: View {
     _colorChoice = State(initialValue: task?.color?.rawValue ?? "board")
     _opportunityID = State(initialValue: task?.opportunityID)
     _leadKind = State(initialValue: task?.leadKind ?? .opportunity)
+    _isUrgent = State(initialValue: task?.isUrgent ?? false)
   }
 
   private var project: BoardProject? { store.project(projectID) }
@@ -1075,14 +1146,16 @@ private struct TaskEditor: View {
         columnID: columnID,
         color: isOpportunity ? ProjectColor(rawValue: colorChoice) : nil,
         opportunityID: isOpportunity ? nil : opportunityID,
-        leadKind: isOpportunity ? leadKind : task.leadKind)
+        leadKind: isOpportunity ? leadKind : task.leadKind,
+        isUrgent: isUrgent)
     } else {
       store.addTask(
         to: projectID, columnID: columnID, title: title,
         details: details,
         color: isOpportunity ? ProjectColor(rawValue: colorChoice) : nil,
         opportunityID: isOpportunity ? nil : opportunityID,
-        leadKind: isOpportunity ? leadKind : .opportunity)
+        leadKind: isOpportunity ? leadKind : .opportunity,
+        isUrgent: isUrgent)
     }
     closeEditor()
   }
@@ -1113,6 +1186,7 @@ private struct TaskEditor: View {
           TextField(isOpportunity ? "Opportunity name" : "What needs doing?", text: $title)
           TextField("Details (optional)", text: $details, axis: .vertical)
             .lineLimit(3...6)
+          Toggle("Urgent", isOn: $isUrgent)
         }
         Section("Column") {
           if task != nil, project?.columns.first?.id == task?.columnID {
